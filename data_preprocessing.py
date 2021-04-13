@@ -1,11 +1,10 @@
-#@title process data
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 
 def process_data():
-    df = pd.read_csv("/content/mmc7.csv")
+    df = pd.read_csv("data/mmc7.csv")
     df = df.sort_values(by=['SubjectID', 'collectionWeek'])
 
     values = df.values
