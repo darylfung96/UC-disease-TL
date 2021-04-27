@@ -3,11 +3,47 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 
-def process_data():
+SAMPLES_SEQUENCE = [['biopsy', 0], ['stool', 0], ['stool', 4], ['stool', 12], ['biopsy', 52], ['stool', 52]]
+def process_data(pad_in_sequence=True):
     df = pd.read_csv("data/mmc7.csv")
-    df = df.sort_values(by=['SubjectID', 'collectionWeek'])
+    df = df.sort_values(by=['SubjectID', 'collectionWeek', 'sampleType'])
+
+    MAX_TIME_POINTS = 6 if pad_in_sequence else 4
+
+    # remove biopsy for now because they only occur from week 0 and week52
+    # df.drop(df[df['sampleType'] == 'biopsy'].index, inplace=True)
 
     values = df.values
+
+    if pad_in_sequence:
+        processed_values = []
+        index_sample_sequence = 0
+        index = 0
+        current_subject_id = values[0, 1]
+
+        while index < values.shape[0]:
+            value = values[index]
+
+            if value[1] != current_subject_id:
+                while index_sample_sequence != len(SAMPLES_SEQUENCE):
+                    empty_value = np.zeros(values.shape[1])
+                    empty_value[1] = current_subject_id
+                    processed_values.append(empty_value)
+                    index_sample_sequence += 1
+                current_subject_id = value[1]
+                index_sample_sequence = 0
+
+            if value[2] != SAMPLES_SEQUENCE[index_sample_sequence][0] or value[3] != SAMPLES_SEQUENCE[index_sample_sequence][1]:
+                empty_value = np.zeros(values.shape[1])
+                empty_value[1] = values[index, 1]
+                processed_values.append(empty_value)
+            else:
+                processed_values.append(value)
+                index += 1
+
+            index_sample_sequence += 1
+
+        values = np.array(processed_values)
 
     # normalize the data
     scaler = StandardScaler()
@@ -34,7 +70,7 @@ def process_data():
             sorted_length.append(len(current_data))
 
             # pad data to 4 time steps
-            while len(current_data) < 6:
+            while len(current_data) < MAX_TIME_POINTS:
                 current_data.append(zero_padding)
 
             # add the current sample to the whole data and the target value
@@ -47,8 +83,7 @@ def process_data():
 
     ### add the last item to the whole data
     sorted_length.append(len(current_data))
-    # pad data to 4 time steps
-    while len(current_data) < 6:
+    while len(current_data) < MAX_TIME_POINTS:
         current_data.append(zero_padding)
     sorted_data.append(current_data)
     target_data.append(str(values[-1, 16]))  # previous id because this current index is the next id
