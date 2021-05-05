@@ -14,6 +14,8 @@ class LightningLSTM(pl.LightningModule):
         self.model = model_dict[model](input_size, hidden_size, output_size)
         self.criterion = nn.CrossEntropyLoss()
 
+        self.log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': []}
+
     def on_train_start(self):
         self.model.train()
 
@@ -40,9 +42,14 @@ class LightningLSTM(pl.LightningModule):
         f1 = f1_score(y_labels, predictions, average='micro')
         precision = precision_score(y_labels, predictions, average='micro')
         recall = recall_score(y_labels, predictions, average='micro')
-        self.log("validation f1", f1, prog_bar=True)
-        self.log("validation precision", precision, prog_bar=True)
-        self.log("validation recall", recall, prog_bar=True)
+
+        self.log_dict['validation loss'].append(loss.item())
+        self.log_dict['validation f1'].append(f1)
+        self.log_dict['validation precision'].append(precision)
+        self.log_dict['validation recall'].append(recall)
+
+        for key, value in self.log_dict.items():
+            self.log(key, value[-1], prog_bar=True)
         return loss
 
     def configure_optimizers(self):
