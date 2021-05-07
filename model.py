@@ -1,4 +1,5 @@
-from sklearn.metrics import f1_score, precision_score, recall_score
+from sklearn.metrics import f1_score, precision_score, recall_score, confusion_matrix
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,6 +16,9 @@ class LightningLSTM(pl.LightningModule):
         self.criterion = nn.CrossEntropyLoss()
 
         self.log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': []}
+        self.step_log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': []}
+        self.best_state_dict = None
+        self.best_f1 = 0
 
     def on_train_start(self):
         self.model.train()
@@ -29,6 +33,8 @@ class LightningLSTM(pl.LightningModule):
 
     def on_validation_epoch_start(self):
         self.model.eval()
+        self.step_log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [],
+                              'validation loss': []}
 
     def validation_step(self, batch, batch_index):
         x, x_length, y = batch
@@ -43,14 +49,28 @@ class LightningLSTM(pl.LightningModule):
         precision = precision_score(y_labels, predictions, average='micro')
         recall = recall_score(y_labels, predictions, average='micro')
 
-        self.log_dict['validation loss'].append(loss.item())
-        self.log_dict['validation f1'].append(f1)
-        self.log_dict['validation precision'].append(precision)
-        self.log_dict['validation recall'].append(recall)
+        self.step_log_dict['validation loss'].append(loss.item())
+        self.step_log_dict['validation f1'].append(f1)
+        self.step_log_dict['validation precision'].append(precision)
+        self.step_log_dict['validation recall'].append(recall)
 
-        for key, value in self.log_dict.items():
-            self.log(key, value[-1], prog_bar=True)
         return loss
+
+    def on_validation_epoch_end(self):
+        # log the mean of metrics in this epoch
+        for key, value in self.step_log_dict.items():
+            current_mean = np.mean(np.array(value))
+            self.log_dict[key].append(current_mean)
+
+        #TODO error when logging in validation epoch end
+        # log to tensorboard
+        # for key, value in self.log_dict.items():
+        #     self.log(key, value[-1], prog_bar=True)
+
+        # keep the best weight based on the best f1 epoch
+        if self.log_dict['validation f1'][-1] > self.best_f1:
+            self.best_f1 = self.log_dict['validation f1'][-1]
+            self.best_state_dict = self.model.state_dict()
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.model.parameters())
