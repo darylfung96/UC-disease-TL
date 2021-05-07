@@ -4,14 +4,18 @@ from sklearn.preprocessing import StandardScaler
 
 
 SAMPLES_SEQUENCE = [['biopsy', 0], ['stool', 0], ['stool', 4], ['stool', 12], ['biopsy', 52], ['stool', 52]]
+missing_num_samples = {'biopsy_0': 0, 'stool_0': 0, 'stool_4': 0, 'stool_12': 0, 'biopsy_52': 0, 'stool_52': 0}
+total_num_samples = {'biopsy_0': 0, 'stool_0': 0, 'stool_4': 0, 'stool_12': 0, 'biopsy_52': 0, 'stool_52': 0}
+
 def process_data(pad_in_sequence=True):
     df = pd.read_csv("data/mmc7.csv")
     df = df.sort_values(by=['SubjectID', 'collectionWeek', 'sampleType'])
 
-    MAX_TIME_POINTS = 6 if pad_in_sequence else 4
+    MAX_TIME_POINTS = 6
 
     # remove biopsy for now because they only occur from week 0 and week52
     # df.drop(df[df['sampleType'] == 'biopsy'].index, inplace=True)
+    # MAX_TIME_POINTS = 4 # if we remove biopsy
 
     values = df.values
 
@@ -26,18 +30,31 @@ def process_data(pad_in_sequence=True):
 
             if value[1] != current_subject_id:
                 while index_sample_sequence != len(SAMPLES_SEQUENCE):
+                    # adding missing samples and keep track of the number of them for different weeks
+                    missing_key = '_'.join([str(item) for item in SAMPLES_SEQUENCE[index_sample_sequence]])
+                    missing_num_samples[missing_key] += 1
+
                     empty_value = np.zeros(values.shape[1])
                     empty_value[1] = current_subject_id
                     processed_values.append(empty_value)
                     index_sample_sequence += 1
+
                 current_subject_id = value[1]
                 index_sample_sequence = 0
 
             if value[2] != SAMPLES_SEQUENCE[index_sample_sequence][0] or value[3] != SAMPLES_SEQUENCE[index_sample_sequence][1]:
+                # adding missing samples and keep track of the number of them for different weeks
+                missing_key = '_'.join([str(item) for item in SAMPLES_SEQUENCE[index_sample_sequence]])
+                missing_num_samples[missing_key] += 1
+
                 empty_value = np.zeros(values.shape[1])
                 empty_value[1] = values[index, 1]
                 processed_values.append(empty_value)
             else:
+                # add total key to see how many samples in each week
+                current_key = '_'.join([str(item) for item in SAMPLES_SEQUENCE[index_sample_sequence]])
+                total_num_samples[current_key] += 1
+
                 processed_values.append(value)
                 index += 1
 
