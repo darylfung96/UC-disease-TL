@@ -7,6 +7,7 @@ SAMPLES_SEQUENCE = [['biopsy', 0], ['stool', 0], ['stool', 4], ['stool', 12], ['
 missing_num_samples = {'biopsy_0': 0, 'stool_0': 0, 'stool_4': 0, 'stool_12': 0, 'biopsy_52': 0, 'stool_52': 0}
 total_num_samples = {'biopsy_0': 0, 'stool_0': 0, 'stool_4': 0, 'stool_12': 0, 'biopsy_52': 0, 'stool_52': 0}
 
+
 def process_data(pad_in_sequence=True):
     df = pd.read_csv("data/mmc7.csv")
     df = df.sort_values(by=['SubjectID', 'collectionWeek', 'sampleType'])
@@ -19,6 +20,7 @@ def process_data(pad_in_sequence=True):
 
     values = df.values
 
+    ### pad the samples with 0
     if pad_in_sequence:
         processed_values = []
         index_sample_sequence = 0
@@ -74,7 +76,8 @@ def process_data(pad_in_sequence=True):
     zero_padding = np.zeros_like(current_data[0])
 
     allsubjectid = []
-    # make into shape [samples, timepoints_length, features]
+
+    ### make into shape [samples, timepoints_length, features]
     for current_index in range(1, values.shape[0]):
         subjectId = values[current_index, 1]
         allsubjectid.append(subjectId)
@@ -115,7 +118,3 @@ def process_data(pad_in_sequence=True):
 
     sorted_data = np.stack(sorted_data, 0).astype(np.float32)
     return sorted_data, sorted_length, np.expand_dims(target_data, 1)
-
-
-
-

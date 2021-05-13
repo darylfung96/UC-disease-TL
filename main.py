@@ -44,6 +44,9 @@ def start_training(model_type, is_pca, pad_in_sequence):
         sorted_data = pca.fit_transform(sorted_data)
         sorted_data = np.reshape(sorted_data, [original_shape[0], original_shape[1], 400])
 
+    random.seed(100)
+    np.random.seed(100)
+    torch.manual_seed(100)
     kf = KFold(n_splits=5)
 
     log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': [],
@@ -102,7 +105,7 @@ def start_training(model_type, is_pca, pad_in_sequence):
     for key, log_value in log_dict.items():
         # get validation confusion matrix
         if key == 'validation confusion matrix':
-            mean_value = np.mean(np.array(log_value), 0)
+            mean_value = np.sum(np.array(log_value), 0)
             mean_fold_values[key] = mean_value
             continue
 
