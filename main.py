@@ -128,11 +128,12 @@ def start_training(model_type, is_pca, pad_in_sequence):
         mean_value = np.mean(np.array(log_value), 0)
         mean_fold_values[key] = mean_value
 
-    torch.save(mean_fold_values, f'plots for {pca_text}_{model_type}_{pad_text}.pth')
+    torch.save(mean_fold_values, f'plots/average F1 plots/plots for {pca_text}_{model_type}_{pad_text}.pth')
 
 all_model_types = ["LSTM", "CNNLSTM"]
 all_pcas = [True, False]
 all_pads = [True, False]
+os.makedirs('plots/average F1 plots', exist_ok=True)
 for model_type in all_model_types:
     for is_pca in all_pcas:
         for pad_in_sequence in all_pads:
