@@ -75,7 +75,7 @@ def start_training(model_type, is_pca, pad_in_sequence):
         tb_logger = pl_loggers.TensorBoardLogger(f'lightning_logs/{log_index}_{pca_text}_{model_type}_{pad_text}')
         pl_trainer = Trainer(max_epochs=100, callbacks=[EarlyStopping(monitor='validation_loss', patience=6)],
                              checkpoint_callback=ModelCheckpoint('saved_model/model', monitor='validation_loss',
-                                                                 save_top_k=1, prefix=f'kfold_{index}'),
+                                                                 save_top_k=1),
                              logger=tb_logger)
         pl_trainer.fit(lightning_lstm, train_data_loader, test_data_loader)
 
