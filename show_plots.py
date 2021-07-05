@@ -19,9 +19,9 @@ for validation_term in validation_terms:
 
 def plot_confusion_matrix(confusion_matrix, name=""):
     fig, ax = plt.subplots()
-    ax.matshow(confusion_matrix, cmap=plt.cm.Blues)
-    for i in range(confusion_matrix.shape[0]):
-        for j in range(confusion_matrix.shape[1]):
+    ax.matshow(confusion_matrix[:-2, :-2], cmap=plt.cm.Blues)
+    for i in range(confusion_matrix.shape[0]-2):
+        for j in range(confusion_matrix.shape[1]-2):
             ax.text(i, j, str(int(confusion_matrix[i][j])), va='center', ha='center')
     plt.title(f'confusion matrix({name})')
     plt.show()
@@ -29,6 +29,8 @@ def plot_confusion_matrix(confusion_matrix, name=""):
 
 # get the confusion matrix for each model
 for pth in os.listdir('plots/average F1 plots/'):
+    if pth != "LSTM PADDED":
+        continue
     result = torch.load(f'plots/average F1 plots/{pth}')
     confusion_matrix = result['validation confusion matrix']
     plot_confusion_matrix(confusion_matrix, name=pth)

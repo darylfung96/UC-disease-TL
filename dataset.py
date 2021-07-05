@@ -17,3 +17,4 @@ class MMCDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.x[idx], self.x_length[idx], self.y[idx]
+
