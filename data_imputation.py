@@ -12,7 +12,7 @@ sorted_data = sorted_data.reshape(sorted_data.shape[0], -1)
 dataset = MMCDataset(sorted_data, sorted_length, target_data)
 train_data_loader = DataLoader(dataset)
 
-model_checkpoint = ModelCheckpoint('gain_model_ckpt/', save_top_k=-1, period=5)
+model_checkpoint = ModelCheckpoint('gain_model_ckpt/best.ckpt', save_top_k=-1, period=5)
 trainer = pl.Trainer(max_epochs=100, checkpoint_callback=model_checkpoint)
 
 gain = GAIN()
