@@ -14,7 +14,7 @@ sorted_data, sorted_length, target_data = process_data(pad_in_sequence=True)
 sorted_data = sorted_data.reshape(sorted_data.shape[0], -1)
 
 dataset_file = 'Spam.csv'  # 'Letter.csv' for Letter dataset an 'Spam.csv' for Spam dataset
-use_gpu = False  # set it to True to use GPU and False to use CPU
+use_gpu = True  # set it to True to use GPU and False to use CPU
 
 if use_gpu:
     torch.cuda.set_device(0)
