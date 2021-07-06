@@ -269,7 +269,7 @@ class GAIN(pl.LightningModule):
 
     def on_epoch_end(self):
         if self.current_epoch % 5 == 0:
-            torch.save(self.state_dict, os.path.join(self.gain_checkpoint_dir, 'best.ckpt'))
+            torch.save(self.state_dict(), os.path.join(self.gain_checkpoint_dir, 'best.ckpt'))
 
     def configure_optimizers(
             self,
