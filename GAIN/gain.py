@@ -14,7 +14,7 @@ sorted_data, sorted_length, target_data = process_data(pad_in_sequence=True)
 sorted_data = sorted_data.reshape(sorted_data.shape[0], -1)
 
 dataset_file = 'Spam.csv'  # 'Letter.csv' for Letter dataset an 'Spam.csv' for Spam dataset
-use_gpu = True  # set it to True to use GPU and False to use CPU
+use_gpu = torch.cuda.is_available()  # set it to True to use GPU and False to use CPU
 
 if use_gpu:
     torch.cuda.set_device(0)
@@ -135,14 +135,14 @@ class GAIN(pl.LightningModule):
         # %% 1. Discriminator
         if use_gpu is True:
             self.D_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True,
-                                device="cuda")).to('cuda')  # Data + Hint as inputs
-            self.D_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True, device="cuda")).to('cuda')
+                                device="cuda"))  # Data + Hint as inputs
+            self.D_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True, device="cuda"))
 
-            self.D_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True, device="cuda")).to('cuda')
-            self.D_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True, device="cuda")).to('cuda')
+            self.D_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True, device="cuda"))
+            self.D_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True, device="cuda"))
 
-            self.D_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True, device="cuda")).to('cuda')
-            self.D_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True, device="cuda")).to('cuda')  # Output is multi-variate
+            self.D_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True, device="cuda"))
+            self.D_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True, device="cuda"))  # Output is multi-variate
         else:
             self.D_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True))  # Data + Hint as inputs
             self.D_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True))
@@ -159,13 +159,13 @@ class GAIN(pl.LightningModule):
         if use_gpu is True:
             self.G_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True,
                                 device="cuda"))  # Data + Mask as inputs (Random Noises are in Missing Components
-            self.G_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True, device="cuda")).to('cuda')
+            self.G_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True, device="cuda"))
 
-            self.G_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True, device="cuda")).to('cuda')
-            self.G_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True, device="cuda")).to('cuda')
+            self.G_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True, device="cuda"))
+            self.G_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True, device="cuda"))
 
-            self.G_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True, device="cuda")).to('cuda')
-            self.G_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True, device="cuda")).to('cuda')
+            self.G_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True, device="cuda"))
+            self.G_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True, device="cuda"))
         else:
             self.G_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]),
                                 requires_grad=True))  # Data + Mask as inputs (Random Noises are in Missing Components)
