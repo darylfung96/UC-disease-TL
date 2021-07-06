@@ -1,6 +1,7 @@
 #%% Packages
 import torch
 import numpy as np
+import os
 from tqdm import tqdm
 # from tqdm.notebook import tqdm_notebook as tqdm
 import torch.nn.functional as F
@@ -13,7 +14,7 @@ sorted_data, sorted_length, target_data = process_data(pad_in_sequence=True)
 sorted_data = sorted_data.reshape(sorted_data.shape[0], -1)
 
 dataset_file = 'Spam.csv'  # 'Letter.csv' for Letter dataset an 'Spam.csv' for Spam dataset
-use_gpu = True  # set it to True to use GPU and False to use CPU
+use_gpu = False  # set it to True to use GPU and False to use CPU
 
 if use_gpu:
     torch.cuda.set_device(0)
@@ -126,54 +127,55 @@ def test_loss(X, M, New_X):
 class GAIN(pl.LightningModule):
     def __init__(self):
         super(GAIN, self).__init__()
-
+        self.gain_checkpoint_dir = 'gain_checkpoints'
+        os.makedirs(self.gain_checkpoint_dir, exist_ok=True)
         self.theta_G, self.theta_D = self._initialize_weight()
 
     def _initialize_weight(self):
         # %% 1. Discriminator
         if use_gpu is True:
-            self.D_W1 = torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True,
-                                device="cuda")  # Data + Hint as inputs
-            self.D_b1 = torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True, device="cuda")
+            self.D_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True,
+                                device="cuda"))  # Data + Hint as inputs
+            self.D_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True, device="cuda"))
 
-            self.D_W2 = torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True, device="cuda")
-            self.D_b2 = torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True, device="cuda")
+            self.D_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True, device="cuda"))
+            self.D_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True, device="cuda"))
 
-            self.D_W3 = torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True, device="cuda")
-            self.D_b3 = torch.tensor(np.zeros(shape=[Dim]), requires_grad=True, device="cuda")  # Output is multi-variate
+            self.D_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True, device="cuda"))
+            self.D_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True, device="cuda"))  # Output is multi-variate
         else:
-            self.D_W1 = torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True)  # Data + Hint as inputs
-            self.D_b1 = torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True)
+            self.D_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True))  # Data + Hint as inputs
+            self.D_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True))
 
-            self.D_W2 = torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True)
-            self.D_b2 = torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True)
+            self.D_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True))
+            self.D_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True))
 
-            self.D_W3 = torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True)
-            self.D_b3 = torch.tensor(np.zeros(shape=[Dim]), requires_grad=True)  # Output is multi-variate
+            self.D_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True))
+            self.D_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True))  # Output is multi-variate
 
         theta_D = [self.D_W1, self.D_W2, self.D_W3, self.D_b1, self.D_b2, self.D_b3]
 
         # %% 2. Generator
         if use_gpu is True:
-            self.G_W1 = torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True,
-                                device="cuda")  # Data + Mask as inputs (Random Noises are in Missing Components)
-            self.G_b1 = torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True, device="cuda")
+            self.G_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True,
+                                device="cuda"))  # Data + Mask as inputs (Random Noises are in Missing Components
+            self.G_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True, device="cuda"))
 
-            self.G_W2 = torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True, device="cuda")
-            self.G_b2 = torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True, device="cuda")
+            self.G_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True, device="cuda"))
+            self.G_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True, device="cuda"))
 
-            self.G_W3 = torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True, device="cuda")
-            self.G_b3 = torch.tensor(np.zeros(shape=[Dim]), requires_grad=True, device="cuda")
+            self.G_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True, device="cuda"))
+            self.G_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True, device="cuda"))
         else:
-            self.G_W1 = torch.tensor(xavier_init([Dim * 2, H_Dim1]),
-                                requires_grad=True)  # Data + Mask as inputs (Random Noises are in Missing Components)
-            self.G_b1 = torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True)
+            self.G_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]),
+                                requires_grad=True))  # Data + Mask as inputs (Random Noises are in Missing Components)
+            self.G_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True))
 
-            self.G_W2 = torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True)
-            self.G_b2 = torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True)
+            self.G_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True))
+            self.G_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True))
 
-            self.G_W3 = torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True)
-            self.G_b3 = torch.tensor(np.zeros(shape=[Dim]), requires_grad=True)
+            self.G_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True))
+            self.G_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True))
 
         theta_G = [self.G_W1, self.G_W2, self.G_W3, self.G_b1, self.G_b2, self.G_b3]
 
@@ -266,6 +268,9 @@ class GAIN(pl.LightningModule):
             self.log('discriminator training loss', D_loss_curr.item(), prog_bar=True)
             return D_loss_curr
 
+    def on_train_epoch_end(self):
+        if self.current_epoch % 5 == 0:
+            torch.save(self.state_dict, os.path.join(self.gain_checkpoint_dir, 'best.ckpt'))
 
     def configure_optimizers(
             self,
