@@ -135,14 +135,14 @@ class GAIN(pl.LightningModule):
         # %% 1. Discriminator
         if use_gpu is True:
             self.D_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True,
-                                device="cuda"))  # Data + Hint as inputs
-            self.D_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True, device="cuda"))
+                                device="cuda")).to('cuda')  # Data + Hint as inputs
+            self.D_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True, device="cuda")).to('cuda')
 
-            self.D_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True, device="cuda"))
-            self.D_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True, device="cuda"))
+            self.D_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True, device="cuda")).to('cuda')
+            self.D_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True, device="cuda")).to('cuda')
 
-            self.D_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True, device="cuda"))
-            self.D_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True, device="cuda"))  # Output is multi-variate
+            self.D_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True, device="cuda")).to('cuda')
+            self.D_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True, device="cuda")).to('cuda')  # Output is multi-variate
         else:
             self.D_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True))  # Data + Hint as inputs
             self.D_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True))
@@ -159,13 +159,13 @@ class GAIN(pl.LightningModule):
         if use_gpu is True:
             self.G_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True,
                                 device="cuda"))  # Data + Mask as inputs (Random Noises are in Missing Components
-            self.G_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True, device="cuda"))
+            self.G_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True, device="cuda")).to('cuda')
 
-            self.G_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True, device="cuda"))
-            self.G_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True, device="cuda"))
+            self.G_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True, device="cuda")).to('cuda')
+            self.G_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True, device="cuda")).to('cuda')
 
-            self.G_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True, device="cuda"))
-            self.G_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True, device="cuda"))
+            self.G_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True, device="cuda")).to('cuda')
+            self.G_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True, device="cuda")).to('cuda')
         else:
             self.G_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]),
                                 requires_grad=True))  # Data + Mask as inputs (Random Noises are in Missing Components)
@@ -197,7 +197,6 @@ class GAIN(pl.LightningModule):
         D_h2 = F.relu(torch.matmul(D_h1, self.D_W2) + self.D_b2)
         D_logit = torch.matmul(D_h2, self.D_W3) + self.D_b3
         D_prob = torch.sigmoid(D_logit)  # [0,1] Probability Output
-
         return D_prob
 
     def _discriminator_loss(self, M, New_X, H):
