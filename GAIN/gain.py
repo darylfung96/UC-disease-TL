@@ -10,8 +10,11 @@ import pytorch_lightning as pl
 from data_preprocessing import process_data
 
 
-sorted_data, sorted_length, target_data = process_data(pad_in_sequence=True)
+output_dict = process_data(pad_in_sequence=True)
+sorted_data, sorted_length, target_data, missing_data = output_dict['sorted_data'], output_dict['sorted_length'], \
+                                                        output_dict['target_data'], output_dict['missing_data']
 sorted_data = sorted_data.reshape(sorted_data.shape[0], -1)
+missing_data = missing_data.reshape(missing_data.shape[0], -1)
 
 dataset_file = 'Spam.csv'  # 'Letter.csv' for Letter dataset an 'Spam.csv' for Spam dataset
 use_gpu = torch.cuda.is_available()  # set it to True to use GPU and False to use CPU
@@ -55,14 +58,15 @@ for i in range(Dim):
     Data[:, i] = Data[:, i] / (np.max(Data[:, i]) + 1e-6)
 
 # %% Missing introducing
-p_miss_vec = p_miss * np.ones((Dim, 1))
-
-Missing = np.zeros((No, Dim))
-
-for i in range(Dim):
-    A = np.random.uniform(0., 1., size=[len(Data), ])
-    B = A > p_miss_vec[i]
-    Missing[:, i] = 1. * B
+# p_miss_vec = p_miss * np.ones((Dim, 1))
+#
+# Missing = np.zeros((No, Dim))
+#
+# for i in range(Dim):
+#     A = np.random.uniform(0., 1., size=[len(Data), ])
+#     B = A > p_miss_vec[i]
+#     Missing[:, i] = 1. * B
+Missing = 1 - missing_data
 
 # %% Train Test Division
 
