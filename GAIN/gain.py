@@ -237,6 +237,13 @@ class GAIN(pl.LightningModule):
         MSE_test_loss = torch.mean(((1 - M) * X - (1 - M) * G_sample) ** 2) / torch.mean(1 - M)
         return G_loss, MSE_train_loss, MSE_test_loss
 
+    def generate(self, X, m):
+        if type(X) != torch.Tensor:
+            X = torch.DoubleTensor(X)
+        if type(m) != torch.Tensor:
+            m = torch.DoubleTensor(m)
+        return self._generator(X, m)
+
     def training_step(self, batch, batch_idx, optimizer_idx):
         # %% Inputs
         mb_idx = sample_idx(Train_No, mb_size)
@@ -271,9 +278,16 @@ class GAIN(pl.LightningModule):
             self.log('discriminator training loss', D_loss_curr.item(), prog_bar=True)
             return D_loss_curr
 
+    def save(self):
+        torch.save(self.state_dict(), os.path.join(self.gain_checkpoint_dir, 'best.ckpt'))
+
+    def load(self):
+        loaded_state_dict = torch.load(os.path.join(self.gain_checkpoint_dir, 'best.ckpt'), map_location=torch.device('cpu'))
+        self.load_state_dict(loaded_state_dict)
+
     def on_epoch_end(self):
         if self.current_epoch % 5 == 0:
-            torch.save(self.state_dict(), os.path.join(self.gain_checkpoint_dir, 'best.ckpt'))
+            self.save()
 
     def configure_optimizers(
             self,
