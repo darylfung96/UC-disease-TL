@@ -129,12 +129,12 @@ class GAIN(pl.LightningModule):
         Test_No = No - self.Train_No
 
         # Train / Test Features
-        self.trainX = Data[idx[:Train_No], :]
-        self.testX = Data[idx[Train_No:], :]
+        self.trainX = Data[idx[:self.Train_No], :]
+        self.testX = Data[idx[self.Train_No:], :]
 
         # Train / Test Missing Indicators
-        self.trainM = Missing[idx[:Train_No], :]
-        self.testM = Missing[idx[Train_No:], :]
+        self.trainM = Missing[idx[:self.Train_No], :]
+        self.testM = Missing[idx[self.Train_No:], :]
 
         self.theta_G, self.theta_D = self._initialize_weight()
 
