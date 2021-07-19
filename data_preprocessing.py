@@ -201,7 +201,7 @@ class ProcessDatasetDavid(ProcessDataset):
         samples = np.array(self.samples).transpose(0, 2, 1).astype(np.float32)
         labels = np.array(self.labels)
 
-        missing_data = np.isnan(samples).astype(np.int32)
+        missing_data = np.isnan(samples).astype(np.float32)
 
         # impute the data if not using GAIN
         if imputer != 'GAIN' and imputer is not None:
