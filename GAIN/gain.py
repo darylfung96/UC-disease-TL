@@ -77,7 +77,7 @@ class GAIN(pl.LightningModule):
 
         # %% System Parameters
         # 1. Mini batch size
-        self.mb_size = 128
+        self.mb_size = 32
         # 2. Missing rate
         self.p_miss = 0.2
         # 3. Hint rate
