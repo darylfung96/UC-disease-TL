@@ -66,8 +66,8 @@ class GAIN(pl.LightningModule):
         sorted_data, sorted_length, target_data, missing_data = output_dict['sorted_data'], output_dict[
             'sorted_length'], \
                                                                 output_dict['target_data'], output_dict['missing_data']
-        sorted_data = sorted_data.reshape(sorted_data.shape[0], -1)
-        missing_data = missing_data.reshape(missing_data.shape[0], -1)
+        sorted_data = sorted_data.reshape(-1, sorted_data.shape[-1])
+        missing_data = missing_data.reshape(-1, missing_data.shape[-1])
 
         dataset_file = 'Spam.csv'  # 'Letter.csv' for Letter dataset an 'Spam.csv' for Spam dataset
 
