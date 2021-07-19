@@ -67,6 +67,10 @@ class LightningLSTM(pl.LightningModule):
         # for key, value in self.log_dict.items():
         #     self.log(key, value[-1], prog_bar=True)
 
+        if self.best_state_dict is None:
+            self.best_f1 = self.log_dict['validation f1'][-1]
+            self.best_state_dict = self.model.state_dict()
+
         # keep the best weight based on the best f1 epoch
         if self.log_dict['validation f1'][-1] > self.best_f1:
             self.best_f1 = self.log_dict['validation f1'][-1]

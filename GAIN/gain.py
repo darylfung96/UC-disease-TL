@@ -7,81 +7,7 @@ from tqdm import tqdm
 import torch.nn.functional as F
 import pytorch_lightning as pl
 
-from data_preprocessing import process_data
-
-
-output_dict = process_data(pad_in_sequence=True)
-sorted_data, sorted_length, target_data, missing_data = output_dict['sorted_data'], output_dict['sorted_length'], \
-                                                        output_dict['target_data'], output_dict['missing_data']
-sorted_data = sorted_data.reshape(sorted_data.shape[0], -1)
-missing_data = missing_data.reshape(missing_data.shape[0], -1)
-
-dataset_file = 'Spam.csv'  # 'Letter.csv' for Letter dataset an 'Spam.csv' for Spam dataset
-use_gpu = torch.cuda.is_available()  # set it to True to use GPU and False to use CPU
-
-if use_gpu:
-    torch.cuda.set_device(0)
-
-# %% System Parameters
-# 1. Mini batch size
-mb_size = 128
-# 2. Missing rate
-p_miss = 0.2
-# 3. Hint rate
-p_hint = 0.9
-# 4. Loss Hyperparameters
-alpha = 10
-# 5. Train Rate
-train_rate = 0.8
-
-# %% Data
-
-# Data generation
-# Data = np.loadtxt(dataset_file, delimiter=",", skiprows=1)
-Data = sorted_data
-# Parameters
-No = len(Data)
-Dim = len(Data[0, :])
-
-# Hidden state dimensions
-H_Dim1 = Dim
-H_Dim2 = Dim
-
-# Normalization (0 to 1)
-Min_Val = np.zeros(Dim)
-Max_Val = np.zeros(Dim)
-
-for i in range(Dim):
-    Min_Val[i] = np.min(Data[:, i])
-    Data[:, i] = Data[:, i] - np.min(Data[:, i])
-    Max_Val[i] = np.max(Data[:, i])
-    Data[:, i] = Data[:, i] / (np.max(Data[:, i]) + 1e-6)
-
-# %% Missing introducing
-# p_miss_vec = p_miss * np.ones((Dim, 1))
-#
-# Missing = np.zeros((No, Dim))
-#
-# for i in range(Dim):
-#     A = np.random.uniform(0., 1., size=[len(Data), ])
-#     B = A > p_miss_vec[i]
-#     Missing[:, i] = 1. * B
-Missing = 1 - missing_data
-
-# %% Train Test Division
-
-idx = np.random.permutation(No)
-
-Train_No = int(No * train_rate)
-Test_No = No - Train_No
-
-# Train / Test Features
-trainX = Data[idx[:Train_No], :]
-testX = Data[idx[Train_No:], :]
-
-# Train / Test Missing Indicators
-trainM = Missing[idx[:Train_No], :]
-testM = Missing[idx[Train_No:], :]
+from data_preprocessing import dataset_list
 
 
 # %% Necessary Functions
@@ -129,57 +55,134 @@ def test_loss(X, M, New_X):
 
 
 class GAIN(pl.LightningModule):
-    def __init__(self):
+    def __init__(self, dataset):
         super(GAIN, self).__init__()
         self.gain_checkpoint_dir = 'gain_checkpoints'
         os.makedirs(self.gain_checkpoint_dir, exist_ok=True)
+
+        current_dataset = dataset_list[dataset]()
+
+        output_dict = current_dataset.process_data(pad_in_sequence=True)
+        sorted_data, sorted_length, target_data, missing_data = output_dict['sorted_data'], output_dict[
+            'sorted_length'], \
+                                                                output_dict['target_data'], output_dict['missing_data']
+        sorted_data = sorted_data.reshape(sorted_data.shape[0], -1)
+        missing_data = missing_data.reshape(missing_data.shape[0], -1)
+
+        dataset_file = 'Spam.csv'  # 'Letter.csv' for Letter dataset an 'Spam.csv' for Spam dataset
+
+        self.use_gpu = torch.cuda.is_available()  # set it to True to use GPU and False to use CPU
+        if self.use_gpu:
+            torch.cuda.set_device(0)
+
+        # %% System Parameters
+        # 1. Mini batch size
+        self.mb_size = 128
+        # 2. Missing rate
+        self.p_miss = 0.2
+        # 3. Hint rate
+        self.p_hint = 0.9
+        # 4. Loss Hyperparameters
+        self.alpha = 10
+        # 5. Train Rate
+        train_rate = 0.8
+
+        # %% Data
+
+        # Data generation
+        # Data = np.loadtxt(dataset_file, delimiter=",", skiprows=1)
+        Data = sorted_data
+        # Parameters
+        No = len(Data)
+        self.Dim = len(Data[0, :])
+
+        # Hidden state dimensions
+        self.H_Dim1 = self.Dim
+        self.H_Dim2 = self.Dim
+
+        # Normalization (0 to 1)
+        Min_Val = np.zeros(self.Dim)
+        Max_Val = np.zeros(self.Dim)
+
+        for i in range(self.Dim):
+            Min_Val[i] = np.min(Data[:, i])
+            Data[:, i] = Data[:, i] - np.min(Data[:, i])
+            Max_Val[i] = np.max(Data[:, i])
+            Data[:, i] = Data[:, i] / (np.max(Data[:, i]) + 1e-6)
+
+        # %% Missing introducing
+        # p_miss_vec = p_miss * np.ones((Dim, 1))
+        #
+        # Missing = np.zeros((No, Dim))
+        #
+        # for i in range(Dim):
+        #     A = np.random.uniform(0., 1., size=[len(Data), ])
+        #     B = A > p_miss_vec[i]
+        #     Missing[:, i] = 1. * B
+        Missing = 1 - missing_data
+
+        # %% Train Test Division
+
+        idx = np.random.permutation(No)
+
+        Train_No = int(No * train_rate)
+        Test_No = No - Train_No
+
+        # Train / Test Features
+        self.trainX = Data[idx[:Train_No], :]
+        self.testX = Data[idx[Train_No:], :]
+
+        # Train / Test Missing Indicators
+        self.trainM = Missing[idx[:Train_No], :]
+        self.testM = Missing[idx[Train_No:], :]
+
         self.theta_G, self.theta_D = self._initialize_weight()
 
     def _initialize_weight(self):
         # %% 1. Discriminator
-        if use_gpu is True:
-            self.D_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True,
+        if self.use_gpu is True:
+            self.D_W1 = torch.nn.Parameter(torch.tensor(xavier_init([self.Dim * 2, self.H_Dim1]), requires_grad=True,
                                 device="cuda"))  # Data + Hint as inputs
-            self.D_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True, device="cuda"))
+            self.D_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[self.H_Dim1]), requires_grad=True, device="cuda"))
 
-            self.D_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True, device="cuda"))
-            self.D_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True, device="cuda"))
+            self.D_W2 = torch.nn.Parameter(torch.tensor(xavier_init([self.H_Dim1, self.H_Dim2]), requires_grad=True, device="cuda"))
+            self.D_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[self.H_Dim2]), requires_grad=True, device="cuda"))
 
-            self.D_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True, device="cuda"))
-            self.D_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True, device="cuda"))  # Output is multi-variate
+            self.D_W3 = torch.nn.Parameter(torch.tensor(xavier_init([self.H_Dim2, self.Dim]), requires_grad=True, device="cuda"))
+            self.D_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[self.Dim]), requires_grad=True, device="cuda"))  # Output is multi-variate
         else:
-            self.D_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True))  # Data + Hint as inputs
-            self.D_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True))
+            self.D_W1 = torch.nn.Parameter(torch.tensor(xavier_init([self.Dim * 2, self.H_Dim1]), requires_grad=True))  # Data + Hint as inputs
+            self.D_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[self.H_Dim1]), requires_grad=True))
 
-            self.D_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True))
-            self.D_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True))
+            self.D_W2 = torch.nn.Parameter(torch.tensor(xavier_init([self.H_Dim1, self.H_Dim2]), requires_grad=True))
+            self.D_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[self.H_Dim2]), requires_grad=True))
 
-            self.D_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True))
-            self.D_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True))  # Output is multi-variate
+            self.D_W3 = torch.nn.Parameter(torch.tensor(xavier_init([self.H_Dim2, self.Dim]), requires_grad=True))
+            self.D_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[self.Dim]), requires_grad=True))  # Output is multi-variate
 
         theta_D = [self.D_W1, self.D_W2, self.D_W3, self.D_b1, self.D_b2, self.D_b3]
 
         # %% 2. Generator
-        if use_gpu is True:
-            self.G_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]), requires_grad=True,
+        if self.use_gpu is True:
+            self.G_W1 = torch.nn.Parameter(torch.tensor(xavier_init([self.Dim * 2, self.H_Dim1]), requires_grad=True,
                                 device="cuda"))  # Data + Mask as inputs (Random Noises are in Missing Components
-            self.G_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True, device="cuda"))
+            self.G_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[self.H_Dim1]), requires_grad=True, device="cuda"))
 
-            self.G_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True, device="cuda"))
-            self.G_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True, device="cuda"))
+            self.G_W2 = torch.nn.Parameter(torch.tensor(xavier_init([self.H_Dim1, self.H_Dim2]), requires_grad=True, device="cuda"))
+            self.G_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[self.H_Dim2]), requires_grad=True, device="cuda"))
 
-            self.G_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True, device="cuda"))
-            self.G_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True, device="cuda"))
+            self.G_W3 = torch.nn.Parameter(torch.tensor(xavier_init([self.H_Dim2, self.Dim]), requires_grad=True, device="cuda"))
+            self.G_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[self.Dim]), requires_grad=True, device="cuda"))
         else:
-            self.G_W1 = torch.nn.Parameter(torch.tensor(xavier_init([Dim * 2, H_Dim1]),
+            self.G_W1 = torch.nn.Parameter(torch.tensor(xavier_init([self.Dim * 2, self.H_Dim1]),
                                 requires_grad=True))  # Data + Mask as inputs (Random Noises are in Missing Components)
-            self.G_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim1]), requires_grad=True))
+            self.G_b1 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[self.H_Dim1]), requires_grad=True))
 
-            self.G_W2 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim1, H_Dim2]), requires_grad=True))
-            self.G_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[H_Dim2]), requires_grad=True))
+            self.G_W2 = torch.nn.Parameter(torch.tensor(xavier_init([self.H_Dim1, self.H_Dim2]), requires_grad=True))
+            self.G_b2 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[self.H_Dim2]), requires_grad=True))
 
-            self.G_W3 = torch.nn.Parameter(torch.tensor(xavier_init([H_Dim2, Dim]), requires_grad=True))
-            self.G_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[Dim]), requires_grad=True))
+            self.G_W3 = torch.nn.Parameter(torch.tensor(xavier_init([self.H_Dim2, self.Dim]), requires_grad=True))
+            self.G_b3 = torch.nn.Parameter(torch.tensor(np.zeros(shape=[self.Dim]), requires_grad=True))
 
         theta_G = [self.G_W1, self.G_W2, self.G_W3, self.G_b1, self.G_b2, self.G_b3]
 
@@ -231,7 +234,7 @@ class GAIN(pl.LightningModule):
         G_loss1 = -torch.mean((1 - M) * torch.log(D_prob + 1e-8))
         MSE_train_loss = torch.mean((M * New_X - M * G_sample) ** 2) / torch.mean(M)
 
-        G_loss = G_loss1 + alpha * MSE_train_loss
+        G_loss = G_loss1 + self.alpha * MSE_train_loss
 
         # %% MSE Performance metric
         MSE_test_loss = torch.mean(((1 - M) * X - (1 - M) * G_sample) ** 2) / torch.mean(1 - M)
@@ -246,12 +249,12 @@ class GAIN(pl.LightningModule):
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         # %% Inputs
-        mb_idx = sample_idx(Train_No, mb_size)
-        X_mb = trainX[mb_idx, :]
+        mb_idx = sample_idx(Train_No, self.mb_size)
+        X_mb = self.trainX[mb_idx, :]
 
-        Z_mb = sample_Z(mb_size, Dim)
-        M_mb = trainM[mb_idx, :]
-        H_mb1 = sample_M(mb_size, Dim, 1 - p_hint)
+        Z_mb = sample_Z(self.mb_size, Dim)
+        M_mb = self.trainM[mb_idx, :]
+        H_mb1 = sample_M(self.mb_size, Dim, 1 - self.p_hint)
         H_mb = M_mb * H_mb1
 
         New_X_mb = M_mb * X_mb + (1 - M_mb) * Z_mb  # Missing Data Introduce

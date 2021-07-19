@@ -5,10 +5,13 @@ import argparse
 import numpy as np
 
 from dataset import MMCDataset
-from data_preprocessing import process_data
+from data_preprocessing import dataset_list
 from GAIN.gain import GAIN
 
-output_dict = process_data(pad_in_sequence=True)
+dataset = 'david'
+current_dataset = dataset_list[dataset]()
+
+output_dict = current_dataset.process_data(pad_in_sequence=True)
 sorted_data, sorted_length, target_data, missing_data = output_dict['sorted_data'], output_dict['sorted_length'], \
                                                         output_dict['target_data'], output_dict['missing_data']
 original_shape = sorted_data.shape
@@ -24,7 +27,7 @@ if __name__ == '__main__':
 
     if args.is_eval:
         print('run evaluation')
-        gain = GAIN()
+        gain = GAIN(dataset)
         gain.load()
 
         masking = 1 - missing_data

@@ -13,17 +13,25 @@ from copy import deepcopy
 import torch
 import os
 
-from data_preprocessing import process_data
+from data_preprocessing import dataset_list
 from dataset import MMCDataset
 from model import LightningLSTM
 
 os.makedirs('lightning_logs', exist_ok=True)
 log_index = len(os.listdir('lightning_logs'))
 
+# define dataset
+dataset = 'david'
+current_dataset = dataset_list[dataset]()
+
 # can be LSTM or CNNLSTM
+pca_components = 200
 model_type = "CNNLSTM"
 is_pca = False
 pad_in_sequence = True
+imputed_type = 'mice'  # options: [None, 'GAIN', 'mean', 'mice']
+if imputed_type is not None:  # ensure pad is True when imputed type is GAIN because GAIN pads the sequence
+    pad_in_sequence = True
 
 
 def start_training(model_type, is_pca, pad_in_sequence):
@@ -34,17 +42,19 @@ def start_training(model_type, is_pca, pad_in_sequence):
 
     if model_type == "CNNLSTM":
         pad_in_sequence = True
-    output_dict = process_data(pad_in_sequence=pad_in_sequence)
+    output_dict = current_dataset.process_data(pad_in_sequence=pad_in_sequence, imputer=imputed_type)
     sorted_data, sorted_length, target_data = output_dict['sorted_data'], output_dict['sorted_length'], \
                                               output_dict['target_data']
+    if imputed_type == 'GAIN':
+        sorted_data = np.load('data/imputed_data.npy').astype(np.float32)
 
     # do PCA
     if is_pca:
         original_shape = sorted_data.shape
-        sorted_data = np.reshape(sorted_data, [-1, 1015])
-        pca = PCA(n_components=400)
+        sorted_data = np.reshape(sorted_data, [-1, sorted_data.shape[2]])
+        pca = PCA(n_components=pca_components)
         sorted_data = pca.fit_transform(sorted_data)
-        sorted_data = np.reshape(sorted_data, [original_shape[0], original_shape[1], 400])
+        sorted_data = np.reshape(sorted_data, [original_shape[0], original_shape[1], pca_components])
 
     random.seed(100)
     np.random.seed(100)
@@ -74,7 +84,7 @@ def start_training(model_type, is_pca, pad_in_sequence):
         lightning_lstm = LightningLSTM(model=model_type, input_size=train_dataset[0][0].shape[1], hidden_size=32,
                                        output_size=train_dataset.y.shape[1])
 
-        tb_logger = pl_loggers.TensorBoardLogger(f'lightning_logs/{log_index}_{pca_text}_{model_type}_{pad_text}')
+        tb_logger = pl_loggers.TensorBoardLogger(f'lightning_logs/{dataset}_{log_index}_{pca_text}_{model_type}_{pad_text}_{imputed_type}')
         pl_trainer = Trainer(max_epochs=100, callbacks=[EarlyStopping(monitor='validation_loss', patience=6)],
                              checkpoint_callback=ModelCheckpoint('saved_model/model', monitor='validation_loss',
                                                                  save_top_k=1, prefix=f'kfold_{index}'),
@@ -130,7 +140,7 @@ def start_training(model_type, is_pca, pad_in_sequence):
         mean_value = np.mean(np.array(log_value), 0)
         mean_fold_values[key] = mean_value
 
-    torch.save(mean_fold_values, f'plots/average F1 plots/plots for {pca_text}_{model_type}_{pad_text}.pth')
+    torch.save(mean_fold_values, f'plots/average F1 plots/plots for {dataset}_{pca_text}_{model_type}_{pad_text}_{imputed_type}.pth')
 
 
 all_model_types = ["LSTM", "CNNLSTM"]
