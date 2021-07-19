@@ -125,8 +125,8 @@ class GAIN(pl.LightningModule):
 
         idx = np.random.permutation(No)
 
-        Train_No = int(No * train_rate)
-        Test_No = No - Train_No
+        self.Train_No = int(No * train_rate)
+        Test_No = No - self.Train_No
 
         # Train / Test Features
         self.trainX = Data[idx[:Train_No], :]
@@ -249,17 +249,17 @@ class GAIN(pl.LightningModule):
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         # %% Inputs
-        mb_idx = sample_idx(Train_No, self.mb_size)
+        mb_idx = sample_idx(self.Train_No, self.mb_size)
         X_mb = self.trainX[mb_idx, :]
 
-        Z_mb = sample_Z(self.mb_size, Dim)
+        Z_mb = sample_Z(self.mb_size, self.Dim)
         M_mb = self.trainM[mb_idx, :]
-        H_mb1 = sample_M(self.mb_size, Dim, 1 - self.p_hint)
+        H_mb1 = sample_M(self.mb_size, self.Dim, 1 - self.p_hint)
         H_mb = M_mb * H_mb1
 
         New_X_mb = M_mb * X_mb + (1 - M_mb) * Z_mb  # Missing Data Introduce
 
-        if use_gpu is True:
+        if self.use_gpu is True:
             X_mb = torch.tensor(X_mb, device="cuda")
             M_mb = torch.tensor(M_mb, device="cuda")
             H_mb = torch.tensor(H_mb, device="cuda")

@@ -48,5 +48,5 @@ if __name__ == '__main__':
         # model_checkpoint = ModelCheckpoint('gain_model_ckpt/best.ckpt', save_top_k=-1, period=5)
         trainer = pl.Trainer(max_epochs=100, gpus=gpus)
 
-        gain = GAIN()
+        gain = GAIN(dataset)
         trainer.fit(gain, train_data_loader)
