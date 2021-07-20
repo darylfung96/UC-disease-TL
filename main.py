@@ -62,7 +62,7 @@ def start_training(model_type, is_pca, pad_in_sequence):
     kf = KFold(n_splits=5)
 
     log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': [],
-                'validation confusion matrix': []}
+                'validation auc': [], 'validation confusion matrix': []}
     for index, (train_index, test_index) in enumerate(kf.split(sorted_data)):
         random.seed(100)
         np.random.seed(100)
@@ -95,6 +95,7 @@ def start_training(model_type, is_pca, pad_in_sequence):
         log_dict['validation precision'].append(lightning_lstm.log_dict['validation precision'])
         log_dict['validation recall'].append(lightning_lstm.log_dict['validation recall'])
         log_dict['validation loss'].append(lightning_lstm.log_dict['validation loss'])
+        log_dict['validation auc'].append(lightning_lstm.log_dict['validation auc'])
 
         # get confusion matrix
         lightning_lstm.model.load_state_dict(lightning_lstm.best_state_dict)

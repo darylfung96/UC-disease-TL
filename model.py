@@ -1,4 +1,4 @@
-from sklearn.metrics import f1_score, precision_score, recall_score, confusion_matrix
+from sklearn.metrics import f1_score, precision_score, recall_score, confusion_matrix, roc_auc_score
 import numpy as np
 import torch
 import torch.nn as nn
@@ -15,8 +15,8 @@ class LightningLSTM(pl.LightningModule):
         self.model = model_dict[model](input_size, hidden_size, output_size)
         self.criterion = nn.CrossEntropyLoss()
 
-        self.log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': []}
-        self.step_log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': []}
+        self.log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': [], 'validation auc': []}
+        self.step_log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': [], 'validation auc': []}
         self.best_state_dict = None
         self.best_f1 = 0
 
@@ -48,11 +48,13 @@ class LightningLSTM(pl.LightningModule):
         f1 = f1_score(y_labels, predictions, average='micro')
         precision = precision_score(y_labels, predictions, average='micro')
         recall = recall_score(y_labels, predictions, average='micro')
+        auc = roc_auc_score(y_labels, predictions )
 
         self.step_log_dict['validation loss'].append(loss.item())
         self.step_log_dict['validation f1'].append(f1)
         self.step_log_dict['validation precision'].append(precision)
         self.step_log_dict['validation recall'].append(recall)
+        self.step_log_dict['validation auc'].append(auc)
 
         return loss
 
