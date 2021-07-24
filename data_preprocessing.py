@@ -175,7 +175,7 @@ class ProcessDatasetAllergy(ProcessDataset):
 
     def process_data(self, pad_in_sequence=True, imputer=None):
         df = pd.read_csv(f'data/DIABIMMUNE_data_16s.csv')
-        metadata = pd.read_excel('data/DIABIMMUNE_metadata.xlsx')
+        metadata = pd.read_excel('data/DIABIMMUNE_metadata.xlsx', engine="openpyxl")
 
         all_df = pd.merge(metadata, df, on=['SampleID'])
         all_df = all_df.sort_values(by=['subjectID', 'collection_month'])
