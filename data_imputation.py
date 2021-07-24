@@ -8,7 +8,7 @@ from dataset import MMCDataset
 from data_preprocessing import dataset_list
 from GAIN.gain import GAIN
 
-dataset_type = 'allergyg'
+dataset_type = 'allergy'
 current_dataset = dataset_list[dataset_type]()
 
 output_dict = current_dataset.process_data(pad_in_sequence=True)
