@@ -1,4 +1,4 @@
-from sklearn.metrics import f1_score, precision_score, recall_score, confusion_matrix, roc_auc_score
+from sklearn.metrics import f1_score, precision_score, recall_score, confusion_matrix, roc_auc_score, roc_curve, auc
 import numpy as np
 import torch
 import torch.nn as nn
@@ -13,7 +13,7 @@ class LightningLSTM(pl.LightningModule):
         self.hidden_size = hidden_size
 
         self.model = model_dict[model](input_size, hidden_size, output_size)
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.BCELoss()
 
         self.log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': [], 'validation auc': []}
         self.step_log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': [], 'validation auc': []}
@@ -27,34 +27,40 @@ class LightningLSTM(pl.LightningModule):
         x, x_length, y = batch
         out = self.model(x, x_length)
 
-        loss = self.criterion(out, torch.argmax(y, 1))
+        loss = self.criterion(out, y)
         self.log('training_loss', loss.item(), prog_bar=True)
         return loss
 
     def on_validation_epoch_start(self):
         self.model.eval()
         self.step_log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [],
-                              'validation loss': []}
+                              'validation loss': [], 'validation auc': []}
 
     def validation_step(self, batch, batch_index):
         x, x_length, y = batch
         out = self.model(x, x_length)
 
-        loss = self.criterion(out, torch.argmax(y, 1))
+        loss = self.criterion(out, y)
         self.log("validation_loss", loss.item(), prog_bar=True)
 
-        predictions = out.argmax(1).cpu().detach().numpy()
-        y_labels = y.argmax(1).cpu().detach().numpy()
-        f1 = f1_score(y_labels, predictions, average='micro')
-        precision = precision_score(y_labels, predictions, average='micro')
-        recall = recall_score(y_labels, predictions, average='micro')
-        auc = roc_auc_score(y_labels, predictions )
+        fpr, tpr, thresholds = roc_curve(y.cpu().detach().reshape(-1), out.cpu().detach().reshape(-1))
+        auc_value = auc(fpr, tpr)
+        optimal_idx = np.argmax(tpr - fpr)
+        optimal_threshold = thresholds[optimal_idx]
+
+        predictions = out.cpu().detach()
+        predictions[ predictions > optimal_threshold] = 1
+        predictions[ predictions <= optimal_threshold] = 0
+
+        f1 = f1_score(y, predictions, average='micro')
+        precision = precision_score(y, predictions, average='micro')
+        recall = recall_score(y, predictions, average='micro')
 
         self.step_log_dict['validation loss'].append(loss.item())
         self.step_log_dict['validation f1'].append(f1)
         self.step_log_dict['validation precision'].append(precision)
         self.step_log_dict['validation recall'].append(recall)
-        self.step_log_dict['validation auc'].append(auc)
+        self.step_log_dict['validation auc'].append(auc_value)
 
         return loss
 
@@ -101,7 +107,7 @@ class LSTM(nn.Module):
         # get last output
         last_seq_idxs = torch.LongTensor([len_idx - 1 for len_idx in inputs_length])
         last_output = X[range(X.shape[0]), last_seq_idxs, :]
-        return self.output_layer(last_output)
+        return F.sigmoid(self.output_layer(last_output))
 
 
 class CNNLSTM(nn.Module):
@@ -125,7 +131,7 @@ class CNNLSTM(nn.Module):
 
         out, hidden = self.lstm(conv2_output.transpose(1, 2))
         last_output = out[:, -1, :]
-        return self.output_layer(last_output)
+        return F.sigmoid(self.output_layer(last_output))
 
 
 model_dict = {

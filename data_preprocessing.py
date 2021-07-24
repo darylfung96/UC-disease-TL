@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
+import collections
 import numpy as np
 from copy import deepcopy
 import pandas as pd
 import pickle
+from sklearn.utils import shuffle
 from sklearn.preprocessing import StandardScaler
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import SimpleImputer, IterativeImputer
@@ -22,11 +24,11 @@ class ProcessDataset(ABC):
 
 
 class ProcessDatasetMMC7(ProcessDataset):
-    def __init__(self):
-        pass
+    def __init__(self, dataset_filename):
+        self.dataset_filename = dataset_filename
 
     def process_data(self, pad_in_sequence=True, imputer=None):
-        df = pd.read_csv("data/mmc7.csv")
+        df = pd.read_csv(f"data/{self.dataset_filename}.csv")
         df = df.sort_values(by=['SubjectID', 'collectionWeek', 'sampleType'])
 
         MAX_TIME_POINTS = 6
@@ -39,7 +41,7 @@ class ProcessDatasetMMC7(ProcessDataset):
         values = df.values
         # remove nan values
         nan_indexes = np.argwhere(values[:, 16] != values[:, 16])
-        original_values = np.delete(values, nan_indexes, 0)
+        original_values = np.delete(values, [811, 812], axis=0) # remove the whole subject hardcoded first #TODO remove hardcoded value here mmc7.csv
 
         ### pad the samples with 0
         if pad_in_sequence:
@@ -167,12 +169,79 @@ class ProcessDatasetMMC7(ProcessDataset):
         return return_dict
 
 
-class ProcessDatasetDavid(ProcessDataset):
-    def __init__(self):
-        with open('data/david.data', 'rb') as f:
+class ProcessDatasetAllergy(ProcessDataset):
+    def __init__(self, dataset_filename):
+        self.dataset_filename = dataset_filename
+
+    def process_data(self, pad_in_sequence=True, imputer=None):
+        df = pd.read_csv(f'data/DIABIMMUNE_data_16s.csv')
+        metadata = pd.read_excel('data/DIABIMMUNE_metadata.xlsx')
+
+        all_df = pd.merge(metadata, df, on=['SampleID'])
+        all_df = all_df.sort_values(by=['subjectID', 'collection_month'])
+
+        all_unique_timepoints = np.unique(all_df['collection_month'].values)
+        max_timepoints = len(all_unique_timepoints)
+        all_samples = np.array([pd.DataFrame(y).values for x, y in all_df.groupby('subjectID', as_index=False)])
+        labels = np.array([sample[:, 8:11][-1] for sample in all_samples]).astype(np.float32)
+
+        nan_samples = np.where(np.isnan(labels)[:, 0] == True)
+        all_samples = np.delete(all_samples, nan_samples, axis=0).tolist()
+        labels = np.delete(labels, nan_samples, axis=0)
+        lengths = []
+
+        # remove duplicated timepoints
+        for sample_index in range(len(all_samples)):
+            current_timepoints = all_samples[sample_index][:, 3]
+            duplicated_timepoints = [item for item, count in collections.Counter(current_timepoints).items() if count > 1]
+            for duplicated_timepoint in duplicated_timepoints:
+                indexes = np.where(all_samples[sample_index][:, 3] == duplicated_timepoint)[0][1:]
+                all_samples[sample_index] = np.delete(all_samples[sample_index], indexes, axis=0)
+
+        if pad_in_sequence is True:
+            for sample_index, current_sample in enumerate(all_samples):
+                list_to_add = []
+                for idx, current_time in enumerate(all_unique_timepoints):
+                    if current_time not in current_sample[:, 3]:
+                        list_to_add.append(idx)
+                for item in list_to_add:
+                    all_samples[sample_index] = np.insert(all_samples[sample_index], item, np.nan, axis=0)
+            lengths = np.repeat(max_timepoints, len(all_samples))
+        else:
+            for sample_index in range(len(all_samples)):
+                length = all_samples[sample_index].shape[1]
+                all_samples[sample_index] = np.pad(all_samples[sample_index],
+                                               [(0, max_timepoints - all_samples[sample_index].shape[0]), (0, 0)],
+                                                    constant_values=np.nan)
+                lengths.append(length)
+                lengths = np.array(lengths)
+
+        all_samples = np.array(all_samples)[:, :, 18:].astype(np.float32)  # TODO make envionment variables too
+        missing_data = np.isnan(all_samples).astype(np.float32)
+
+        # impute the data if not using GAIN
+        if imputer != 'GAIN' and imputer is not None:
+            current_imputer = imputer_dict[imputer]
+            original_shape = all_samples.shape
+            all_samples = all_samples.reshape(-1, original_shape[-1])
+            all_samples = current_imputer.fit_transform(all_samples)
+            all_samples = all_samples.reshape(*original_shape)
+        # if imputation is none just set them to 0
+        if imputer is None:
+            all_samples[np.isnan(all_samples)] = 0
+
+        return_dict = {'sorted_data': all_samples,
+                       'sorted_length': lengths, 'target_data': labels, 'missing_data': missing_data}
+        return return_dict
+
+
+class ProcessDatasetMeta(ProcessDataset):
+    def __init__(self, dataset_filename):
+        with open(f'data/{dataset_filename}.data', 'rb') as f:
             dataset = pickle.load(f)
         self.timepoints = dataset['T']
-        self.max_timepoints = len(range(-5, 11))
+        self.all_unique_timepoints = np.unique([v for timepoint in self.timepoints for v in timepoint])
+        self.max_timepoints = len(self.all_unique_timepoints)
         self.original_x = dataset['X']
         self.labels = dataset['y']
 
@@ -183,9 +252,9 @@ class ProcessDatasetDavid(ProcessDataset):
         if pad_in_sequence is True:
             for sample_index, timepoint in enumerate(self.timepoints):
                 list_to_add = []
-                for i in range(-5, 11):
-                    if i not in timepoint:
-                        list_to_add.append(i + 5)
+                for idx, current_time in enumerate(self.all_unique_timepoints):
+                    if current_time not in timepoint:
+                        list_to_add.append(idx)
                 for item in list_to_add:
                     self.samples[sample_index] = np.insert(self.samples[sample_index], item, np.nan, axis=1)
             lengths = np.repeat(self.max_timepoints, len(self.samples))
@@ -199,7 +268,8 @@ class ProcessDatasetDavid(ProcessDataset):
             lengths = np.array(lengths)
 
         samples = np.array(self.samples).transpose(0, 2, 1).astype(np.float32)
-        labels = np.array(self.labels)
+        labels = np.array(self.labels).astype(np.float32)
+        samples, labels, lengths = shuffle(samples, labels, lengths, random_state=0)
 
         missing_data = np.isnan(samples).astype(np.float32)
 
@@ -219,5 +289,6 @@ class ProcessDatasetDavid(ProcessDataset):
         return return_dict
 
 
-dataset_list = {'mmc7': ProcessDatasetMMC7, 'david': ProcessDatasetDavid}
+dataset_list = {'mmc7': ProcessDatasetMMC7, 'david': ProcessDatasetMeta, 'digiulio': ProcessDatasetMeta,
+                't1d': ProcessDatasetMeta, 'allergy': ProcessDatasetAllergy}
 

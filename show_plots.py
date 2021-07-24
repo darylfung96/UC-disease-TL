@@ -1,39 +1,44 @@
 import os
 import matplotlib.pyplot as plt
+from itertools import chain
+import pandas as pd
 import numpy as np
 import torch
 
-validation_terms = ['validation f1', 'validation precision', 'validation recall', 'validation loss']
-plot_choices = ['GAIN', 'mice', 'mean']  # or None
-plot_type = None
-
+validation_terms = ['validation f1', 'validation precision', 'validation recall', 'validation loss', 'validation auc']
+columns = ['model']
 for validation_term in validation_terms:
-    plt.clf()
-    plt.ylabel(validation_term)
-    plt.xlabel('epoch')
-    for pth in os.listdir('plots/average F1 plots/'):
+    columns += [f'{validation_term} mean']
+    columns += [f'{validation_term} std']
+all_rows = []
 
-        # plot those without imputations
-        if plot_type is None:
-            should_continue = False
-            for plot_choice in plot_choices:
-                if plot_choice in pth:
-                    should_continue = True
-                    break
-            if should_continue:
-                continue
-        else:
-        # plot those with imputations
-            if plot_type not in pth:
-                continue
+plot_choices = ['GAIN', 'mice', 'mean']  # or None
+plot_type = 'mean'
 
-        result = torch.load(f'plots/average F1 plots/{pth}')
-        current_result = result[validation_term]
-        plt.plot(range(current_result.shape[0]), current_result, label=pth)
-    plt.legend()
-    os.makedirs(f'plots/plots results/{validation_term}', exist_ok=True)
-    plt.savefig(f'plots/plots results/{validation_term}/{plot_type}.png', dpi=1200)
-    # plt.show()
+# plot as table
+for pth in os.listdir('plots/average F1 plots/'):
+
+    # plot those without imputations
+    if plot_type is None:
+        should_continue = False
+        for plot_choice in plot_choices:
+            if plot_choice in pth:
+                should_continue = True
+                break
+        if should_continue:
+            continue
+    else:
+    # plot those with imputations
+        if plot_type not in pth:
+            continue
+
+    result = torch.load(f'plots/average F1 plots/{pth}')
+    mean = list(result['mean'].values())[:-1]
+    std = list(result['std'].values())
+
+    all_rows.append([pth.replace('plots for ', '')] + list(chain(*zip(mean, std))))
+os.makedirs(f'plots/plots results/', exist_ok=True)
+pd.DataFrame(all_rows, columns=columns).to_csv(f'plots/plots results/results.csv')
 
 
 def plot_confusion_matrix(confusion_matrix, name=""):
