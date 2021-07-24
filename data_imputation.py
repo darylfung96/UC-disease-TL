@@ -39,7 +39,7 @@ if __name__ == '__main__':
         print(f'saved imputed data to {args.save_data_path}')
 
     else:
-        dataset = MMCDataset(sorted_data, sorted_length, target_data)
+        dataset = MMCDataset(sorted_data, sorted_data, sorted_data)
         train_data_loader = DataLoader(dataset)
 
         gpus = None
