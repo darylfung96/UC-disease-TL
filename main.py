@@ -34,7 +34,7 @@ pca_components = 200
 model_type = "CNNLSTM"
 is_pca = False
 pad_in_sequence = True
-imputed_type = None  # options: [None, 'GAIN', 'mean', 'mice']
+imputed_type = 'mean'  # options: [None, 'GAIN', 'mean', 'mice']
 if imputed_type is not None:  # ensure pad is True when imputed type is GAIN because GAIN pads the sequence
     pad_in_sequence = True
 

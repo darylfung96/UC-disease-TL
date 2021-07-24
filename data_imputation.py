@@ -9,7 +9,7 @@ from data_preprocessing import dataset_list
 from GAIN.gain import GAIN
 
 dataset_type = 'allergy'
-current_dataset = dataset_list[dataset_type]()
+current_dataset = dataset_list[dataset_type](dataset_type)
 
 output_dict = current_dataset.process_data(pad_in_sequence=True)
 sorted_data, sorted_length, target_data, missing_data = output_dict['sorted_data'], output_dict['sorted_length'], \
