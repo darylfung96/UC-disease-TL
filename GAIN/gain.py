@@ -60,7 +60,7 @@ class GAIN(pl.LightningModule):
         self.gain_checkpoint_dir = 'gain_checkpoints'
         os.makedirs(self.gain_checkpoint_dir, exist_ok=True)
 
-        current_dataset = dataset_list[dataset]()
+        current_dataset = dataset_list[dataset](dataset)
 
         output_dict = current_dataset.process_data(pad_in_sequence=True)
         sorted_data, sorted_length, target_data, missing_data = output_dict['sorted_data'], output_dict[
