@@ -22,13 +22,14 @@ missing_data = missing_data.reshape(-1, original_shape[-1])
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--is_eval', action="store_true")
-    parser.add_argument('--save_data_path', type=str, default='data/imputed_data.npy')
+    parser.add_argument('--checkpoint_name', type=str, default='best.ckpt')
+    parser.add_argument('--save_data_path', type=str, default='data/imputed_data_mmc7.npy')
     args = parser.parse_args()
 
     if args.is_eval:
         print('run evaluation')
         gain = GAIN(dataset_type)
-        gain.load()
+        gain.load(args.checkpoint_name)
 
         masking = 1 - missing_data
         imputed_data = gain.generate(sorted_data, masking)

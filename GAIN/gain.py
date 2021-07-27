@@ -284,8 +284,8 @@ class GAIN(pl.LightningModule):
     def save(self):
         torch.save(self.state_dict(), os.path.join(self.gain_checkpoint_dir, 'best.ckpt'))
 
-    def load(self):
-        loaded_state_dict = torch.load(os.path.join(self.gain_checkpoint_dir, 'best.ckpt'), map_location=torch.device('cpu'))
+    def load(self, checkpoint_name='best.ckpt'):
+        loaded_state_dict = torch.load(os.path.join(self.gain_checkpoint_dir, checkpoint_name), map_location=torch.device('cpu'))
         self.load_state_dict(loaded_state_dict)
 
     def on_epoch_end(self):

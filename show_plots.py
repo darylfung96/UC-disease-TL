@@ -13,24 +13,26 @@ for validation_term in validation_terms:
 all_rows = []
 
 plot_choices = ['GAIN', 'mice', 'mean']  # or None
-plot_type = 'mean'
+plot_type = None
 
 # plot as table
 for pth in os.listdir('plots/average F1 plots/'):
 
+    if pth == '.DS_Store':
+        continue
     # plot those without imputations
-    if plot_type is None:
-        should_continue = False
-        for plot_choice in plot_choices:
-            if plot_choice in pth:
-                should_continue = True
-                break
-        if should_continue:
-            continue
-    else:
-    # plot those with imputations
-        if plot_type not in pth:
-            continue
+    # if plot_type is None:
+    #     should_continue = False
+    #     for plot_choice in plot_choices:
+    #         if plot_choice in pth:
+    #             should_continue = True
+    #             break
+    #     if should_continue:
+    #         continue
+    # else:
+    # # plot those with imputations
+    #     if plot_type not in pth:
+    #         continue
 
     result = torch.load(f'plots/average F1 plots/{pth}')
     mean = list(result['mean'].values())[:-1]
@@ -38,7 +40,7 @@ for pth in os.listdir('plots/average F1 plots/'):
 
     all_rows.append([pth.replace('plots for ', '')] + list(chain(*zip(mean, std))))
 os.makedirs(f'plots/plots results/', exist_ok=True)
-pd.DataFrame(all_rows, columns=columns).to_csv(f'plots/plots results/results.csv')
+pd.DataFrame(all_rows, columns=columns).to_csv(f'plots/plots results/{plot_type}_results.csv')
 
 
 def plot_confusion_matrix(confusion_matrix, name=""):

@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
 import collections
 import numpy as np
 from copy import deepcopy
@@ -15,21 +15,77 @@ missing_num_samples = {'biopsy_0': 0, 'stool_0': 0, 'stool_4': 0, 'stool_12': 0,
 total_num_samples = {'biopsy_0': 0, 'stool_0': 0, 'stool_4': 0, 'stool_12': 0, 'biopsy_52': 0, 'stool_52': 0}
 imputer_dict = {'mean': SimpleImputer(missing_values=np.nan, strategy='mean'),
                 'mice': IterativeImputer(random_state=0, missing_values=np.nan)}
+index_to_order = ['kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species']
 
 
 class ProcessDataset(ABC):
-    @abstractmethod
-    def process_data(self, pad_in_sequence=True, imputer=None):
-        pass
+
+    @property
+    def dataset_otu_columns(self):
+        raise NotImplementedError
+
+    def process_data(self, pad_in_sequence=True, imputer=None, normalize=True):
+        # since GAIN will use pad_in_sequence
+        if imputer == 'GAIN':
+            assert pad_in_sequence is True
+
+    def categorize(self, pad_in_sequence=True, imputer=None, order='phylum'):
+        output_dict = self.process_data(pad_in_sequence, imputer, normalize=False)
+        sorted_data = output_dict['sorted_data']
+
+        # get all the names of that particular order
+        samples_columns = [item.split('|') for item in self.dataset_otu_columns]
+        for samples_columns_index in range(len(samples_columns)):
+            samples_columns[samples_columns_index] = \
+                [item.split('__')[1] for item in samples_columns[samples_columns_index]]
+
+        idx = index_to_order.index(order)
+        # this total_length is to ensure that we are only getting the correct category
+        total_length = idx + 1
+
+        order_dict = {}  # the order index of the column of the dataset
+
+        # get all the orders indexes into a dictionary,
+        # so later we can select the specific column index and aggregate those orders
+        for sample_index, sample_columns in enumerate(samples_columns):
+            # if not the correct category we go to next one
+            if len(sample_columns) != total_length:
+                continue
+
+            if order_dict.get(sample_columns[idx], None) is None:
+                order_dict[sample_columns[idx]] = [sample_index]
+            else:
+                order_dict[sample_columns[idx]].append(sample_index)
+
+        #  ##### aggregate the orders of the columns value and put into a single column #####  #
+        # category is the name of the category of the specific order, (phylum) e.g.
+        # current_indexes are the indexes to get the values for that category (Firmicutes) e.g.
+        new_columns = []
+        new_values = []
+        for current_category, current_indexes in order_dict.items():
+            aggregated_value = np.sum(sorted_data[:, :, current_indexes], 2)
+            new_columns.append(current_category)
+            new_values.append(aggregated_value)
+        new_values = np.array(new_values).transpose(1, 2, 0)
+
+        output_dict['sorted_data'] = new_values
+        return output_dict
 
 
 class ProcessDatasetMMC7(ProcessDataset):
     def __init__(self, dataset_filename):
         self.dataset_filename = dataset_filename
+        self.dataset = pd.read_csv(f"data/{self.dataset_filename}.csv")
+        self.gain_data_filename = 'data/imputed_data_mmc7.npy'
 
-    def process_data(self, pad_in_sequence=True, imputer=None):
-        df = pd.read_csv(f"data/{self.dataset_filename}.csv")
-        df = df.sort_values(by=['SubjectID', 'collectionWeek', 'sampleType'])
+    @property
+    def dataset_otu_columns(self):
+        return list(self.dataset.columns)[24:]
+
+    def process_data(self, pad_in_sequence=True, imputer=None, normalize=True):
+        super(ProcessDatasetMMC7, self).process_data()
+
+        self.dataset = self.dataset.sort_values(by=['SubjectID', 'collectionWeek', 'sampleType'])
 
         MAX_TIME_POINTS = 6
         missing_values = None  # this is only used when pad_in_sequence is True
@@ -38,7 +94,7 @@ class ProcessDatasetMMC7(ProcessDataset):
         # df.drop(df[df['sampleType'] == 'biopsy'].index, inplace=True)
         # MAX_TIME_POINTS = 4 # if we remove biopsy
 
-        values = df.values
+        values = self.dataset.values
         # remove nan values
         nan_indexes = np.argwhere(values[:, 16] != values[:, 16])
         original_values = np.delete(values, [811, 812], axis=0) # remove the whole subject hardcoded first #TODO remove hardcoded value here mmc7.csv
@@ -109,12 +165,17 @@ class ProcessDatasetMMC7(ProcessDataset):
             current_imputer = imputer_dict[imputer]
             values = current_imputer.fit_transform(values)
         # if imputation is none just set them to 0
-        if imputer is None:
+        elif imputer is None:
             values[np.isnan(values)] = 0
 
-        # normalize the data
-        scaler = StandardScaler()
-        normalized_features = scaler.fit_transform(values)
+        # ### do normalization ### #
+        # if GAIN we don't have to normalize because GAIN already normalizes
+        if imputer == 'GAIN':
+            values = np.load(self.gain_data_filename).astype(np.float32)
+            normalized_features = values
+        else:
+            scaler = StandardScaler()
+            normalized_features = scaler.fit_transform(values)
 
         lastSubjectId = original_values[0, 1]
         sorted_data = []  # store all the sorted data
@@ -172,17 +233,23 @@ class ProcessDatasetMMC7(ProcessDataset):
 class ProcessDatasetAllergy(ProcessDataset):
     def __init__(self, dataset_filename):
         self.dataset_filename = dataset_filename
+        self.dataset_otu = pd.read_csv(f'data/DIABIMMUNE_data_16s.csv')
+        self.dataset_metadata = pd.read_excel('data/DIABIMMUNE_metadata.xlsx', engine="openpyxl")
+        self.gain_data_filename = 'data/imputed_data_allergy.npy'
+        self.dataset = pd.merge(self.dataset_metadata, self.dataset_otu, on=['SampleID'])
 
-    def process_data(self, pad_in_sequence=True, imputer=None):
-        df = pd.read_csv(f'data/DIABIMMUNE_data_16s.csv')
-        metadata = pd.read_excel('data/DIABIMMUNE_metadata.xlsx', engine="openpyxl")
+    @property
+    def dataset_otu_columns(self):
+        return list(self.dataset.columns)[18:]
 
-        all_df = pd.merge(metadata, df, on=['SampleID'])
-        all_df = all_df.sort_values(by=['subjectID', 'collection_month'])
+    def process_data(self, pad_in_sequence=True, imputer=None, normalize=True):
+        super(ProcessDatasetAllergy, self).process_data()
 
-        all_unique_timepoints = np.unique(all_df['collection_month'].values)
+        self.dataset = self.dataset.sort_values(by=['subjectID', 'collection_month'])
+
+        all_unique_timepoints = np.unique(self.dataset['collection_month'].values)
         max_timepoints = len(all_unique_timepoints)
-        all_samples = np.array([pd.DataFrame(y).values for x, y in all_df.groupby('subjectID', as_index=False)])
+        all_samples = np.array([pd.DataFrame(y).values for x, y in self.dataset.groupby('subjectID', as_index=False)])
         labels = np.array([sample[:, 8:11][-1] for sample in all_samples]).astype(np.float32)
 
         nan_samples = np.where(np.isnan(labels)[:, 0] == True)
@@ -209,17 +276,17 @@ class ProcessDatasetAllergy(ProcessDataset):
             lengths = np.repeat(max_timepoints, len(all_samples))
         else:
             for sample_index in range(len(all_samples)):
-                length = all_samples[sample_index].shape[1]
+                length = all_samples[sample_index].shape[0]
                 all_samples[sample_index] = np.pad(all_samples[sample_index],
                                                [(0, max_timepoints - all_samples[sample_index].shape[0]), (0, 0)],
                                                     constant_values=np.nan)
                 lengths.append(length)
-                lengths = np.array(lengths)
+            lengths = np.array(lengths)
 
         all_samples = np.array(all_samples)[:, :, 18:].astype(np.float32)  # TODO make envionment variables too
         missing_data = np.isnan(all_samples).astype(np.float32)
 
-        # impute the data if not using GAIN
+        # impute the data if not using GAIN or there is no imputation setup
         if imputer != 'GAIN' and imputer is not None:
             current_imputer = imputer_dict[imputer]
             original_shape = all_samples.shape
@@ -227,8 +294,21 @@ class ProcessDatasetAllergy(ProcessDataset):
             all_samples = current_imputer.fit_transform(all_samples)
             all_samples = all_samples.reshape(*original_shape)
         # if imputation is none just set them to 0
-        if imputer is None:
+        elif imputer is None:
             all_samples[np.isnan(all_samples)] = 0
+
+        # ### do normalization ### #
+        # if GAIN we don't have to normalize because GAIN already normalizes
+        if imputer == 'GAIN':
+            all_samples = np.load(self.gain_data_filename).astype(np.float32)
+        else:
+            # normalize
+            if normalize:
+                scaler = StandardScaler()
+                original_shape = all_samples.shape
+                all_samples = all_samples.reshape(-1, original_shape[-1])
+                all_samples = scaler.fit_transform(all_samples)
+                all_samples.reshape(*original_shape)
 
         return_dict = {'sorted_data': all_samples,
                        'sorted_length': lengths, 'target_data': labels, 'missing_data': missing_data}
@@ -236,6 +316,7 @@ class ProcessDatasetAllergy(ProcessDataset):
 
 
 class ProcessDatasetMeta(ProcessDataset):
+
     def __init__(self, dataset_filename):
         with open(f'data/{dataset_filename}.data', 'rb') as f:
             dataset = pickle.load(f)
@@ -245,7 +326,11 @@ class ProcessDatasetMeta(ProcessDataset):
         self.original_x = dataset['X']
         self.labels = dataset['y']
 
-    def process_data(self, pad_in_sequence=True, imputer=None):
+    @property
+    def dataset_otu_columns(self):
+        return None
+
+    def process_data(self, pad_in_sequence=True, imputer=None, normalize=True):
         lengths = []
         self.samples = deepcopy(self.original_x)
 
@@ -266,10 +351,16 @@ class ProcessDatasetMeta(ProcessDataset):
                                                     constant_values=np.nan)
                 lengths.append(length)
             lengths = np.array(lengths)
-
         samples = np.array(self.samples).transpose(0, 2, 1).astype(np.float32)
         labels = np.array(self.labels).astype(np.float32)
         samples, labels, lengths = shuffle(samples, labels, lengths, random_state=0)
+
+        # ### normalize ### #
+        scaler = StandardScaler()
+        original_shape = samples.shape
+        samples = samples.reshape(-1, original_shape[-1])
+        samples = scaler.fit_transform(samples)
+        samples.reshape(*original_shape)
 
         missing_data = np.isnan(samples).astype(np.float32)
 
@@ -291,4 +382,3 @@ class ProcessDatasetMeta(ProcessDataset):
 
 dataset_list = {'mmc7': ProcessDatasetMMC7, 'david': ProcessDatasetMeta, 'digiulio': ProcessDatasetMeta,
                 't1d': ProcessDatasetMeta, 'allergy': ProcessDatasetAllergy}
-
