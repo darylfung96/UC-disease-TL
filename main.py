@@ -25,7 +25,7 @@ log_index = len(os.listdir('lightning_logs'))
 # define dataset
 # change parameters here
 dataset_name = 'allergy'
-imputed_type = None  # options: [None, 'GAIN', 'mean', 'mice']
+imputed_type = 'mean'  # options: [None, 'GAIN', 'mean', 'mice'] #TODO retrain GAIN for allergy
 imputed_npy_filename = 'data/imputed_data_allergy.npy'
 taxonomy_order = None  # [None, 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species']
 

@@ -308,7 +308,7 @@ class ProcessDatasetAllergy(ProcessDataset):
                 original_shape = all_samples.shape
                 all_samples = all_samples.reshape(-1, original_shape[-1])
                 all_samples = scaler.fit_transform(all_samples)
-                all_samples.reshape(*original_shape)
+                all_samples = all_samples.reshape(*original_shape)
 
         return_dict = {'sorted_data': all_samples,
                        'sorted_length': lengths, 'target_data': labels, 'missing_data': missing_data}
