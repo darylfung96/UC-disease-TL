@@ -7,7 +7,7 @@ import pytorch_lightning as pl
 
 
 class LightningLSTM(pl.LightningModule):
-    def __init__(self, model, input_size, hidden_size, output_size):
+    def __init__(self, model, input_size, hidden_size, output_size, load_model_filename=None):
         super(LightningLSTM, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -19,6 +19,11 @@ class LightningLSTM(pl.LightningModule):
         self.step_log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': [], 'validation auc': []}
         self.best_state_dict = None
         self.best_f1 = 0
+
+        if load_model_filename is not None:
+            pretrained_dict = torch.load(load_model_filename)['state_dict']
+            pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in self.state_dict() and self.state_dict()[k].shape == v.shape}
+            self.load_state_dict(pretrained_dict)
 
     def on_train_start(self):
         self.model.train()

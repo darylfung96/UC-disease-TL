@@ -6,12 +6,10 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import loggers as pl_loggers
 from torch.utils.data import DataLoader
 from sklearn.decomposition import PCA
-from sklearn.model_selection import StratifiedKFold, KFold
+from sklearn.model_selection import StratifiedKFold, KFold, ShuffleSplit
 from sklearn.metrics import confusion_matrix
-from sklearn.preprocessing import OneHotEncoder
 import random
 import numpy as np
-from copy import deepcopy
 import torch
 import os
 
@@ -24,10 +22,10 @@ log_index = len(os.listdir('lightning_logs'))
 
 # define dataset
 # change parameters here
-dataset_name = 'allergy'
-imputed_type = 'mean'  # options: [None, 'GAIN', 'mean', 'mice'] #TODO retrain GAIN for allergy
+dataset_name = 'mmc7'
+# imputed_type = None  # options: [None, 'GAIN', 'mean', 'mice'] #TODO retrain GAIN for allergy
 imputed_npy_filename = 'data/imputed_data_allergy.npy'
-taxonomy_order = None  # [None, 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species']
+# taxonomy_order = 'phylum'  # [None, 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species']
 
 current_dataset = dataset_list[dataset_name](dataset_name)
 if dataset_name == 'mmc7':
@@ -42,11 +40,25 @@ is_pca = False
 pad_in_sequence = True
 
 
-if imputed_type is not None:  # ensure pad is True when imputed type is GAIN because GAIN pads the sequence
-    pad_in_sequence = True
+def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_order=None, imputed_type=None,
+                   prefix='', number_splits=10, load_model_filename=None):
+    """
 
+    :param output_dict:     Dictionary of the dataset information in the format of:
+                            {'sorted_data': X, 'sorted_length: length of X, 'target_data': label,
+                            'missing_data': missingNAN values in the dataset }
 
-def start_training(model_type, is_pca, pad_in_sequence):
+                            can get this information from ProcessDataset
+
+    :param model_type:      LSTM, CNNLSTM (type of the model)
+    :param is_pca:
+    :param pad_in_sequence:
+    :param prefix:          Add this name into the start of the model saved name or the result saved name
+    :return:
+    """
+    if imputed_type is not None:  # ensure pad is True when imputed type is GAIN because GAIN pads the sequence
+        pad_in_sequence = True
+
     # pad the patient samples to 6 time stamp in sequence, if we are using LSTM we do not have to use this
     # this is only for CNN, we could experiment LSTM with this variable set as True too
     pca_text = 'PCA' if is_pca else ''
@@ -55,18 +67,8 @@ def start_training(model_type, is_pca, pad_in_sequence):
     if model_type == "CNNLSTM":
         pad_in_sequence = True
 
-    # either run training on the categorized of the order or the whole set of otus
-    if taxonomy_order is not None:
-        output_dict = current_dataset.categorize(pad_in_sequence, imputed_type, taxonomy_order)
-    else:
-        output_dict = current_dataset.process_data(pad_in_sequence=pad_in_sequence, imputer=imputed_type)
-
     sorted_data, sorted_length, target_data = output_dict['sorted_data'], output_dict['sorted_length'], \
                                               output_dict['target_data']
-
-    if onehot_encode:
-        one_hot_encoder = OneHotEncoder()
-        target_data = one_hot_encoder.fit_transform(target_data).toarray().astype(np.float32)
 
     # do PCA
     if is_pca:
@@ -88,7 +90,12 @@ def start_training(model_type, is_pca, pad_in_sequence):
                 'validation auc': [], 'validation confusion matrix': []}
 
     # kf = StratifiedKFold(n_splits=10, random_state=100)
-    kf = KFold(n_splits=10, random_state=100)
+    if number_splits == 1:
+        kf = ShuffleSplit(n_splits=number_splits, test_size=0.1)
+        kf.get_n_splits(sorted_data, target_data)
+    else:
+        kf = KFold(n_splits=number_splits, random_state=100)
+
     for index, (train_index, test_index) in enumerate(kf.split(sorted_data, target_data)):
         random.seed(100)
         np.random.seed(100)
@@ -108,9 +115,9 @@ def start_training(model_type, is_pca, pad_in_sequence):
         test_data_loader = DataLoader(test_dataset, batch_size=64)
 
         lightning_lstm = LightningLSTM(model=model_type, input_size=train_dataset[0][0].shape[1], hidden_size=32,
-                                       output_size=target_data.shape[1])
+                                       output_size=target_data.shape[1], load_model_filename=load_model_filename)
 
-        tb_logger = pl_loggers.TensorBoardLogger(f'lightning_logs/{dataset_name}_{taxonomy_order}_{log_index}_{pca_text}_{model_type}_{pad_text}_{imputed_type}')
+        tb_logger = pl_loggers.TensorBoardLogger(f'lightning_logs/{prefix}_{dataset_name}_{taxonomy_order}_{log_index}_{pca_text}_{model_type}_{pad_text}_{imputed_type}')
         pl_trainer = Trainer(max_epochs=100, callbacks=[EarlyStopping(monitor='validation_loss', patience=6)],
                              checkpoint_callback=ModelCheckpoint('saved_model/model', monitor='validation_loss',
                                                                  save_top_k=1, prefix=f'kfold_{index}'),
@@ -176,7 +183,7 @@ def start_training(model_type, is_pca, pad_in_sequence):
         std_fold_values[key] = std_value
 
     all_fold_values = {'mean': mean_fold_values, 'std': std_fold_values}
-    torch.save(all_fold_values, f'plots/average F1 plots/plots for {dataset_name}_{taxonomy_order}_{pca_text}_{model_type}_{pad_text}_{imputed_type}.pth')
+    torch.save(all_fold_values, f'plots/average F1 plots/plots for {prefix}_{dataset_name}_{taxonomy_order}_{pca_text}_{model_type}_{pad_text}_{imputed_type}.pth')
 
 
 if __name__ == '__main__':
@@ -185,7 +192,14 @@ if __name__ == '__main__':
     parser.add_argument('--pca', action='store_true')
     parser.add_argument('--pad_in_sequence', action='store_true')
     parser.add_argument('--model_type', default='LSTM')
+    parser.add_argument('--taxonomy_order', default=None, type=str, choices=[None, 'kingdom', 'phylum',
+                                                                             'class', 'order', 'family',
+                                                                             'genus', 'species'])
+    parser.add_argument('--imputed_type', default=None, type=str, choices=[None, 'GAIN', 'mean', 'mice'])
     args = parser.parse_args()
+
+    output_dict = current_dataset.process_data(pad_in_sequence=pad_in_sequence, imputer=args.imputed_type,
+                                               taxonomy_order=args.taxonomy_order)
 
     if args.all:
         all_model_types = ["LSTM", "CNNLSTM"]
@@ -195,6 +209,8 @@ if __name__ == '__main__':
         for model_type in all_model_types:
             for is_pca in all_pcas:
                 for pad_in_sequence in all_pads:
-                    start_training(model_type, is_pca, pad_in_sequence)
+                    start_training(output_dict, model_type, is_pca, pad_in_sequence,
+                                   taxonomy_order=args.taxonomy_order, imputed_type=args.imputed_type, prefix="")
     else:
-        start_training(args.model_type, args.pca, args.pad_in_sequence)
+        start_training(output_dict, args.model_type, args.pca, args.pad_in_sequence,
+                       taxonomy_order=args.taxonomy_order, imputed_type=args.imputed_type, prefix="")
