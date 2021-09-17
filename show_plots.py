@@ -34,6 +34,23 @@ for pth in os.listdir('plots/average F1 plots/'):
     #     if plot_type not in pth:
     #         continue
 
+    # if 'transfer' not in pth:
+    #     continue
+    # if 'allergy' not in pth:
+    #     continue
+    if 'mmc7' not in pth:
+        continue
+    if 'transfer' in pth:
+        continue
+    if 'distil' in pth:
+        continue
+    if 'conpool' in pth:
+        continue
+    if 'g__' in pth:
+        continue
+    if 'GAIN' in pth or 'mean' in pth or 'mice' in pth:
+        continue
+
     result = torch.load(f'plots/average F1 plots/{pth}')
     mean = list(result['mean'].values())[:-1]
     std = list(result['std'].values())

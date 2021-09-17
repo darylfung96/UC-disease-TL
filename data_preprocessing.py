@@ -281,13 +281,18 @@ class ProcessDatasetMMC7(ProcessDataset):
         sorted_length = np.array(sorted_length)
         sorted_data = np.stack(sorted_data, 0).astype(np.float32)
 
+        if imputer == 'GAIN':
+            sorted_data = np.load(self.gain_data_filename).astype(np.float32)
+
+        # ### delete nan data ### #
+        nan_indexes = np.where(target_data == 'nan')[0]
+        target_data = np.delete(target_data, nan_indexes, axis=0)
+        sorted_data = np.delete(sorted_data, nan_indexes, axis=0)
+
         # convert target data to one hot encoding
         target_data = np.expand_dims(target_data, 1)
         self.one_hot_encoder = OneHotEncoder()
         target_data = self.one_hot_encoder.fit_transform(target_data).toarray().astype(np.float32)
-
-        if imputer == 'GAIN':
-            sorted_data = np.load(self.gain_data_filename).astype(np.float32)
 
         self._data_dict = {'sorted_data': sorted_data, 'sorted_length': sorted_length,
                        'target_data': target_data}

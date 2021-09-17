@@ -16,6 +16,7 @@ import os
 from data_preprocessing import dataset_list
 from dataset import MMCDataset
 from model import LightningLSTM
+from self_distillation import FirstLightningDistillation
 
 os.makedirs('lightning_logs', exist_ok=True)
 log_index = len(os.listdir('lightning_logs'))
@@ -23,8 +24,8 @@ log_index = len(os.listdir('lightning_logs'))
 # define dataset
 # change parameters here
 dataset_name = 'mmc7'
-# imputed_type = None  # options: [None, 'GAIN', 'mean', 'mice'] #TODO retrain GAIN for allergy
-imputed_npy_filename = 'data/imputed_data_allergy.npy'
+# imputed_type = None  # options: [None, 'GAIN', 'mean', 'mice']
+imputed_npy_filename = 'data/imputed_data_mmc7.npy'
 # taxonomy_order = 'phylum'  # [None, 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species']
 
 current_dataset = dataset_list[dataset_name](dataset_name)
@@ -41,7 +42,8 @@ pad_in_sequence = True
 
 
 def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_order=None, imputed_type=None,
-                   prefix='', number_splits=10, load_model_filename=None):
+                   prefix='', number_splits=10, load_model_filename=None, gradual_unfreezing=False, discr_fine_tune=False,
+                   concat_pooling=False, self_distillation=False, attention=False):
     """
 
     :param output_dict:     Dictionary of the dataset information in the format of:
@@ -58,6 +60,11 @@ def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_or
     """
     if imputed_type is not None:  # ensure pad is True when imputed type is GAIN because GAIN pads the sequence
         pad_in_sequence = True
+    gradual_unfreezing_text = 'g' if gradual_unfreezing else ''
+    discr_fine_tune_text = 'df' if discr_fine_tune else ''
+    concat_pooling_text = 'conpool' if concat_pooling else ''
+    self_distillation_text = 'self_distil' if self_distillation else ''
+    attention_text = 'attention' if attention else ''
 
     # pad the patient samples to 6 time stamp in sequence, if we are using LSTM we do not have to use this
     # this is only for CNN, we could experiment LSTM with this variable set as True too
@@ -114,10 +121,17 @@ def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_or
         train_data_loader = DataLoader(train_dataset, batch_size=64)
         test_data_loader = DataLoader(test_dataset, batch_size=64)
 
-        lightning_lstm = LightningLSTM(model=model_type, input_size=train_dataset[0][0].shape[1], hidden_size=32,
-                                       output_size=target_data.shape[1], load_model_filename=load_model_filename)
+        lightning_lstm = LightningLSTM(model=model_type, input_size=train_dataset[0][0].shape[1], max_inputs_length=train_dataset[0][0].shape[0], hidden_size=32,
+                                       output_size=target_data.shape[1], load_model_filename=load_model_filename,
+                                       gradual_unfreezing=gradual_unfreezing, discr_fine_tune=discr_fine_tune,
+                                       concat_pooling=concat_pooling, self_distillation=self_distillation,
+                                       attention=attention)
 
-        tb_logger = pl_loggers.TensorBoardLogger(f'lightning_logs/{prefix}_{dataset_name}_{taxonomy_order}_{log_index}_{pca_text}_{model_type}_{pad_text}_{imputed_type}')
+        tb_logger = pl_loggers.TensorBoardLogger(f'lightning_logs/{prefix}_{attention_text}_{self_distillation_text}_'
+                                                 f'{gradual_unfreezing_text}_'
+                                f'{discr_fine_tune_text}_{concat_pooling_text}_{prefix}_'
+                                f'{dataset_name}_{taxonomy_order}_'
+                                f'{pca_text}_{model_type}_{pad_text}_{imputed_type}')
         pl_trainer = Trainer(max_epochs=100, callbacks=[EarlyStopping(monitor='validation_loss', patience=6)],
                              checkpoint_callback=ModelCheckpoint('saved_model/model', monitor='validation_loss',
                                                                  save_top_k=1, prefix=f'kfold_{index}'),
@@ -183,7 +197,11 @@ def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_or
         std_fold_values[key] = std_value
 
     all_fold_values = {'mean': mean_fold_values, 'std': std_fold_values}
-    torch.save(all_fold_values, f'plots/average F1 plots/plots for {prefix}_{dataset_name}_{taxonomy_order}_{pca_text}_{model_type}_{pad_text}_{imputed_type}.pth')
+    torch.save(all_fold_values, f'plots/average F1 plots/plots for {attention_text}_'
+                                f'{self_distillation_text}_{gradual_unfreezing_text}_'
+                                f'{discr_fine_tune_text}_{concat_pooling_text}_{prefix}_'
+                                f'{dataset_name}_{taxonomy_order}_'
+                                f'{pca_text}_{model_type}_{pad_text}_{imputed_type}.pth')
 
 
 if __name__ == '__main__':
@@ -202,15 +220,29 @@ if __name__ == '__main__':
                                                taxonomy_order=args.taxonomy_order)
 
     if args.all:
-        all_model_types = ["LSTM", "CNNLSTM"]
+        all_model_types = ["CNNLSTM", "LSTM"]
         all_pcas = [True, False]
         all_pads = [True, False]
+        discr_fine_tunes = [False]
+        gradual_unfreezings = [False]
+        concat_poolings = [False]
+        self_distillations = [FirstLightningDistillation()]  # TODO change this to [True, False]
+        attentions = [False]  # TODO change this to [True, False]
         os.makedirs('plots/average F1 plots', exist_ok=True)
-        for model_type in all_model_types:
-            for is_pca in all_pcas:
-                for pad_in_sequence in all_pads:
-                    start_training(output_dict, model_type, is_pca, pad_in_sequence,
-                                   taxonomy_order=args.taxonomy_order, imputed_type=args.imputed_type, prefix="")
+
+        for attention in attentions:
+            for self_distillation in self_distillations:
+                for discr_fine_tune in discr_fine_tunes:
+                    for gradual_unfreezing in gradual_unfreezings:
+                        for concat_pooling in concat_poolings:
+                            for model_type in all_model_types:
+                                for is_pca in all_pcas:
+                                    for pad_in_sequence in all_pads:
+                                        start_training(output_dict, model_type, is_pca, pad_in_sequence,
+                                                       taxonomy_order=args.taxonomy_order, imputed_type=args.imputed_type,
+                                                       prefix="",
+                                                       discr_fine_tune=discr_fine_tune, gradual_unfreezing=gradual_unfreezing,
+                                                       concat_pooling=concat_pooling, self_distillation=self_distillation, attention=attention)
     else:
         start_training(output_dict, args.model_type, args.pca, args.pad_in_sequence,
                        taxonomy_order=args.taxonomy_order, imputed_type=args.imputed_type, prefix="")
