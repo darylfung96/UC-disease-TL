@@ -39,12 +39,11 @@ pca_components = 200
 # model_type = "CNNLSTM"
 # is_pca = False
 pad_in_sequence = True
-gpus = None
 
 
 def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_order=None, imputed_type=None,
                    prefix='', number_splits=10, load_model_filename=None, gradual_unfreezing=False, discr_fine_tune=False,
-                   concat_pooling=False, self_distillation: LightningDistillation=None, attention=False):
+                   concat_pooling=False, self_distillation: LightningDistillation=None, attention=False, gpus=None):
     """
 
     :param output_dict:     Dictionary of the dataset information in the format of:
@@ -213,6 +212,7 @@ if __name__ == '__main__':
     parser.add_argument('--pca', action='store_true')
     parser.add_argument('--pad_in_sequence', action='store_true')
     parser.add_argument('--model_type', default='LSTM')
+    parser.add_argument('--gpus', default=None)
     parser.add_argument('--taxonomy_order', default=None, type=str, choices=[None, 'kingdom', 'phylum',
                                                                              'class', 'order', 'family',
                                                                              'genus', 'species'])
@@ -245,7 +245,7 @@ if __name__ == '__main__':
                                                            taxonomy_order=args.taxonomy_order, imputed_type=args.imputed_type,
                                                            prefix="",
                                                            discr_fine_tune=discr_fine_tune, gradual_unfreezing=gradual_unfreezing,
-                                                           concat_pooling=concat_pooling, self_distillation=self_distillation, attention=attention)
+                                                           concat_pooling=concat_pooling, self_distillation=self_distillation, attention=attention, gpus=args.gpus)
     else:
         output_dict = current_dataset.process_data(pad_in_sequence=pad_in_sequence, imputer=args.imputed_type,
                                                    taxonomy_order=args.taxonomy_order)
