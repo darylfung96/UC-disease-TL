@@ -35,7 +35,7 @@ else:
     onehot_encode = False
 
 # can be LSTM or CNNLSTM
-# pca_components = 200
+pca_components = 200
 # model_type = "CNNLSTM"
 # is_pca = False
 pad_in_sequence = True
