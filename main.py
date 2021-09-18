@@ -16,7 +16,7 @@ import os
 from data_preprocessing import dataset_list
 from dataset import MMCDataset
 from model import LightningLSTM
-from self_distillation import FirstLightningDistillation
+from self_distillation import FirstLightningDistillation, SecondLightningDistillation
 
 os.makedirs('lightning_logs', exist_ok=True)
 log_index = len(os.listdir('lightning_logs'))
@@ -121,18 +121,20 @@ def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_or
         train_data_loader = DataLoader(train_dataset, batch_size=64)
         test_data_loader = DataLoader(test_dataset, batch_size=64)
 
+        total_epoch = 100
+
         lightning_lstm = LightningLSTM(model=model_type, input_size=train_dataset[0][0].shape[1], max_inputs_length=train_dataset[0][0].shape[0], hidden_size=32,
                                        output_size=target_data.shape[1], load_model_filename=load_model_filename,
                                        gradual_unfreezing=gradual_unfreezing, discr_fine_tune=discr_fine_tune,
                                        concat_pooling=concat_pooling, self_distillation=self_distillation,
-                                       attention=attention)
+                                       attention=attention, total_epoch=total_epoch)
 
         tb_logger = pl_loggers.TensorBoardLogger(f'lightning_logs/{prefix}_{attention_text}_{self_distillation_text}_'
                                                  f'{gradual_unfreezing_text}_'
                                 f'{discr_fine_tune_text}_{concat_pooling_text}_{prefix}_'
                                 f'{dataset_name}_{taxonomy_order}_'
                                 f'{pca_text}_{model_type}_{pad_text}_{imputed_type}')
-        pl_trainer = Trainer(max_epochs=100, callbacks=[EarlyStopping(monitor='validation_loss', patience=6)],
+        pl_trainer = Trainer(max_epochs=total_epoch,
                              checkpoint_callback=ModelCheckpoint('saved_model/model', monitor='validation_loss',
                                                                  save_top_k=1, prefix=f'kfold_{index}'),
                              logger=tb_logger)
@@ -226,7 +228,7 @@ if __name__ == '__main__':
         discr_fine_tunes = [False]
         gradual_unfreezings = [False]
         concat_poolings = [False]
-        self_distillations = [FirstLightningDistillation()]  # TODO change this to [True, False]
+        self_distillations = [SecondLightningDistillation()]
         attentions = [False]  # TODO change this to [True, False]
         os.makedirs('plots/average F1 plots', exist_ok=True)
 

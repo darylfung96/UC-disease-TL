@@ -4,16 +4,18 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
+from typing import List, Any
 
 from self_distillation import LightningDistillation, FirstLightningDistillation
 
 class LightningLSTM(pl.LightningModule):
     def __init__(self, model, input_size, hidden_size, output_size, max_inputs_length, load_model_filename=None, gradual_unfreezing=False,
                  discr_fine_tune=False, concat_pooling=False,
-                 self_distillation: LightningDistillation = FirstLightningDistillation, attention=False):
+                 self_distillation: LightningDistillation = FirstLightningDistillation, attention=False, total_epoch=100):
         super(LightningLSTM, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
+        self.total_epoch = total_epoch
 
         self.model = model_dict[model](input_size, hidden_size, output_size, max_inputs_length, concat_pooling, self_distillation, attention)
         self.criterion = nn.BCELoss()
@@ -37,6 +39,8 @@ class LightningLSTM(pl.LightningModule):
 
         # for self distillation
         self.self_distillation = self_distillation
+        distill_args = {'total_epoch': total_epoch}
+        self.self_distillation.init(distill_args, self.model)
 
     def _unfreeze_next_layer(self):
         list(reversed(list(self.parameters())))[self.current_unfrozen_layer].requires_grad = True
@@ -51,18 +55,26 @@ class LightningLSTM(pl.LightningModule):
         if self.gradual_unfreezing:
             self._unfreeze_next_layer()
 
+    def on_train_epoch_start(self):
+        args = {'current_epoch': self.current_epoch, 'model': self.model}
+        self.self_distillation.on_train_epoch_start(args)
+
     def training_step(self, batch, batch_index):
         x, x_length, y = batch
         out = self.model(x, x_length)
 
         loss = self.criterion(out, y)
         if self.self_distillation:
-            args = {'loss': loss, 'y': y, 'main_pre_output_layer_features': self.model.main_pre_output_layer_features,
-                    'post_main_output_layer': self.model.post_main_output_layer}
-            loss = self.self_distillation.training_step(args)
+            args = {'loss': loss, 'x': x, 'x_length': x_length, 'y': y,
+                    'main_pre_output_layer_features': self.model.main_pre_output_layer_features,
+                    'post_main_output_layer': self.model.post_main_output_layer, 'model': self.model}
+            loss = self.self_distillation.step(args)
 
         self.log('training_loss', loss.item(), prog_bar=True)
         return loss
+
+    def on_train_epoch_end(self):
+        self.self_distillation.on_train_epoch_end(self.model)
 
     def on_validation_epoch_start(self):
         self.model.eval()
@@ -75,9 +87,10 @@ class LightningLSTM(pl.LightningModule):
 
         loss = self.criterion(out, y)
         if self.self_distillation:
-            args = {'loss': loss, 'y': y, 'main_pre_output_layer_features': self.model.main_pre_output_layer_features,
-                    'post_main_output_layer': self.model.post_main_output_layer}
-            loss = self.self_distillation.validation_step(args)
+            args = {'loss': loss, 'x': x, 'x_length': x_length,
+                    'y': y, 'main_pre_output_layer_features': self.model.main_pre_output_layer_features,
+                    'post_main_output_layer': self.model.post_main_output_layer, 'model': self.model}
+            loss = self.self_distillation.step(args)
         self.log("validation_loss", loss.item(), prog_bar=True)
 
         fpr, tpr, thresholds = roc_curve(y.cpu().detach().reshape(-1), out.cpu().detach().reshape(-1))
@@ -207,7 +220,7 @@ class LSTM(BackBone):
         if self.self_distillation:
             distillation_args = {'hidden_size': hidden_size, 'output_size': output_size, 'attention': attention,
                                  'create_layer_block': self._create_layer_block}
-            self.self_distillation.model.model_init(distillation_args)
+            self.self_distillation.init(distillation_args, None)
         self.main_pre_output_layer, self.main_output_layer = self._create_layer_block(hidden_size, output_size, attention)
 
         # outputs
@@ -247,7 +260,7 @@ class LSTM(BackBone):
 
         # self distillation
         if self.self_distillation:
-            self.self_distillation.model.model_distillation_forward(last_output)
+            self.self_distillation.forward(last_output)
 
         self.main_pre_output_layer_features = self.main_pre_output_layer(last_output)
         main_output_layer = self.main_output_layer(self.main_pre_output_layer_features)
@@ -278,7 +291,7 @@ class CNNLSTM(BackBone):
         if self.self_distillation:
             distillation_args = {'hidden_size': hidden_size, 'output_size': output_size, 'attention': attention,
                                  'create_layer_block': self._create_layer_block}
-            self.self_distillation.model.model_init(distillation_args)
+            self.self_distillation.init(distillation_args, None)
         self.main_pre_output_layer, self.main_output_layer = self._create_layer_block(hidden_size, output_size, attention)
 
         # outputs
@@ -306,7 +319,7 @@ class CNNLSTM(BackBone):
 
         # self distillation
         if self.self_distillation:
-            self.self_distillation.model.model_distillation_forward(last_output)
+            self.self_distillation.forward(last_output)
 
         self.main_pre_output_layer_features = self.main_pre_output_layer(last_output)
         main_output_layer = self.main_output_layer(self.main_pre_output_layer_features)

@@ -4,21 +4,30 @@ import torch.nn.functional as F
 
 
 class LightningDistillation(ABC):
+
     @abstractmethod
-    def training_step(self, loss):
+    def init(self, args, model):
         pass
 
     @abstractmethod
-    def validation_step(self, args):
-        """
+    def on_train_epoch_start(self, args):
+        pass
 
-        :param args:
-        :return:
-        """
+    @abstractmethod
+    def step(self, args):
+        pass
+
+    @abstractmethod
+    def on_train_epoch_end(self, model):
+        pass
+
+    @abstractmethod
+    def forward(self, output):
         pass
 
 
 class ModelDistillation(ABC):
+
     @abstractmethod
     def model_init(self, args):
         pass
@@ -33,14 +42,21 @@ class ModelDistillation(ABC):
 
 
 class FirstLightningDistillation(LightningDistillation):
-
     def __init__(self):
         self.criterion = nn.BCELoss()
         self.model = FirstModelDistillation()
         self.alpha = 0.1
         self.beta = 1e-6
 
-    def training_step(self, args):
+    def init(self, args, model):
+        self.model.model_init(args)
+
+    def step(self, args):
+        """
+
+                :param args: loss, main_pre_output_layer_features, post_main_output_layer, y
+                :return:
+        """
         loss = args['loss']
         y = args['y']
         feature_loss, entropy_feature_loss = self.model.get_self_distillation_loss(args)
@@ -58,27 +74,8 @@ class FirstLightningDistillation(LightningDistillation):
         loss = entropy_loss + entropy_feature_loss + feature_loss
         return loss
 
-    def validation_step(self, args):
-        """
-
-        :param args: loss, main_pre_output_layer_features, post_main_output_layer, y
-        :return:
-        """
-        loss = args['loss']
-        y = args['y']
-        feature_loss, entropy_feature_loss = self.model.get_self_distillation_loss(args)
-        post_output_layer1, post_output_layer2, \
-        post_output_layer3, post_output_layer4 = self.model.get_sub_classifiers()
-        sub_loss_1 = self.criterion(post_output_layer1, y)
-        sub_loss_2 = self.criterion(post_output_layer2, y)
-        sub_loss_3 = self.criterion(post_output_layer3, y)
-        sub_loss_4 = self.criterion(post_output_layer4, y)
-
-        entropy_loss = (1 - self.alpha) * (sub_loss_1 + loss + sub_loss_1 + sub_loss_2 + sub_loss_3 + sub_loss_4)
-        entropy_feature_loss = self.alpha * entropy_feature_loss
-        feature_loss = self.beta * feature_loss
-        loss = entropy_loss + entropy_feature_loss + feature_loss
-        return loss
+    def forward(self, output):
+        self.model.model_distillation_forward(output)
 
 
 class FirstModelDistillation(ModelDistillation):
@@ -156,3 +153,44 @@ class FirstModelDistillation(ModelDistillation):
             pre_output_layer3_features = self.pre_output_layer3_features
         self.pre_output_layer4_features = self.pre_output_layer4(pre_output_layer3_features)
         self.post_output_layer4 = F.sigmoid(self.output_layer4(self.pre_output_layer4_features))
+
+
+class SecondLightningDistillation(LightningDistillation):
+    def __init__(self):
+        self.distil_loss = nn.BCELoss()
+        self.prev_model = None
+        self.current_epoch = 0
+        self.total_epoch = 0
+        self.alpha = 0
+        self.last_alpha = 0.3
+
+    def init(self, args, model):
+        if args.get('total_epoch', None):
+            self.total_epoch = args['total_epoch']
+
+        if model is not None:
+            self.prev_model = model
+
+    def on_train_epoch_start(self, args):
+        model = args['model']
+        self.current_epoch = args['current_epoch']
+        self.prev_model.load_state_dict(model.state_dict())
+        self.alpha = self.current_epoch / self.total_epoch
+
+    def step(self, args):
+        x = args['x']
+        x_length = args['x_length']
+        loss = args['loss']
+        post_main_output_layer = args['post_main_output_layer']
+
+        out = self.prev_model(x, x_length)
+
+        distil_loss = self.distil_loss(post_main_output_layer, out.detach())  # self distillation regularizer
+        total_loss = (1 - self.alpha) * loss + self.alpha * distil_loss
+        return total_loss
+
+    def on_train_epoch_end(self, model):
+        ...#self.prev_model.load_state_dict(model.state_dict())
+
+    def forward(self, output):
+        ...
