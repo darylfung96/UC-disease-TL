@@ -51,6 +51,9 @@ class FirstLightningDistillation(LightningDistillation):
     def init(self, args, model):
         self.model.model_init(args)
 
+    def on_train_epoch_start(self, args):
+        ...
+
     def step(self, args):
         """
 
@@ -74,6 +77,9 @@ class FirstLightningDistillation(LightningDistillation):
         loss = entropy_loss + entropy_feature_loss + feature_loss
         return loss
 
+    def on_train_epoch_end(self, model):
+        ...
+
     def forward(self, output):
         self.model.model_distillation_forward(output)
 
@@ -87,14 +93,18 @@ class FirstModelDistillation(ModelDistillation):
         return self.post_output_layer1, self.post_output_layer2, self.post_output_layer3, self.post_output_layer4
 
     def model_init(self, args):
-        hidden_size = args['hidden_size']
-        output_size = args['output_size']
-        self.attention = args['attention']
-        create_layer_block = args['create_layer_block']
-        self.pre_output_layer1, self.output_layer1 = create_layer_block(hidden_size, output_size, self.attention)
-        self.pre_output_layer2, self.output_layer2 = create_layer_block(hidden_size, output_size, self.attention)
-        self.pre_output_layer3, self.output_layer3 = create_layer_block(hidden_size, output_size, self.attention)
-        self.pre_output_layer4, self.output_layer4 = create_layer_block(hidden_size, output_size, self.attention)
+        if args.get('hidden_size', None) is not None:
+            hidden_size = args['hidden_size']
+        if args.get('output_size', None) is not None:
+            output_size = args['output_size']
+        if args.get('attention', None) is not None:
+            self.attention = args['attention']
+        if args.get('create_layer_block', None) is not None:
+            create_layer_block = args['create_layer_block']
+            self.pre_output_layer1, self.output_layer1 = create_layer_block(hidden_size, output_size, self.attention)
+            self.pre_output_layer2, self.output_layer2 = create_layer_block(hidden_size, output_size, self.attention)
+            self.pre_output_layer3, self.output_layer3 = create_layer_block(hidden_size, output_size, self.attention)
+            self.pre_output_layer4, self.output_layer4 = create_layer_block(hidden_size, output_size, self.attention)
 
     def get_self_distillation_loss(self, args):
         main_pre_output_layer_features = args['main_pre_output_layer_features']

@@ -16,7 +16,7 @@ import os
 from data_preprocessing import dataset_list
 from dataset import MMCDataset
 from model import LightningLSTM
-from self_distillation import FirstLightningDistillation, SecondLightningDistillation
+from self_distillation import LightningDistillation, FirstLightningDistillation, SecondLightningDistillation
 
 os.makedirs('lightning_logs', exist_ok=True)
 log_index = len(os.listdir('lightning_logs'))
@@ -39,11 +39,12 @@ pca_components = 200
 model_type = "CNNLSTM"
 is_pca = False
 pad_in_sequence = True
+gpus = None
 
 
 def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_order=None, imputed_type=None,
                    prefix='', number_splits=10, load_model_filename=None, gradual_unfreezing=False, discr_fine_tune=False,
-                   concat_pooling=False, self_distillation=False, attention=False):
+                   concat_pooling=False, self_distillation: LightningDistillation=None, attention=False):
     """
 
     :param output_dict:     Dictionary of the dataset information in the format of:
@@ -63,7 +64,7 @@ def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_or
     gradual_unfreezing_text = 'g' if gradual_unfreezing else ''
     discr_fine_tune_text = 'df' if discr_fine_tune else ''
     concat_pooling_text = 'conpool' if concat_pooling else ''
-    self_distillation_text = 'self_distil' if self_distillation else ''
+    self_distillation_text = self_distillation.__class__.__name__ if self_distillation else ''
     attention_text = 'attention' if attention else ''
 
     # pad the patient samples to 6 time stamp in sequence, if we are using LSTM we do not have to use this
@@ -137,7 +138,7 @@ def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_or
         pl_trainer = Trainer(max_epochs=total_epoch,
                              checkpoint_callback=ModelCheckpoint('saved_model/model', monitor='validation_loss',
                                                                  save_top_k=1, prefix=f'kfold_{index}'),
-                             logger=tb_logger)
+                             logger=tb_logger, gpus=gpus)
         pl_trainer.fit(lightning_lstm, train_data_loader, test_data_loader)
 
         log_dict['validation f1'].append(lightning_lstm.log_dict['validation f1'])
@@ -228,7 +229,7 @@ if __name__ == '__main__':
         discr_fine_tunes = [False]
         gradual_unfreezings = [False]
         concat_poolings = [False]
-        self_distillations = [SecondLightningDistillation()]
+        self_distillations = [FirstLightningDistillation(), SecondLightningDistillation()]
         attentions = [False]  # TODO change this to [True, False]
         os.makedirs('plots/average F1 plots', exist_ok=True)
 

@@ -8,6 +8,7 @@ from typing import List, Any
 
 from self_distillation import LightningDistillation, FirstLightningDistillation
 
+
 class LightningLSTM(pl.LightningModule):
     def __init__(self, model, input_size, hidden_size, output_size, max_inputs_length, load_model_filename=None, gradual_unfreezing=False,
                  discr_fine_tune=False, concat_pooling=False,
