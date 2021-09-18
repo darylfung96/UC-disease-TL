@@ -23,9 +23,9 @@ log_index = len(os.listdir('lightning_logs'))
 
 # define dataset
 # change parameters here
-dataset_name = 'mmc7'
+dataset_name = 'allergy'
 # imputed_type = None  # options: [None, 'GAIN', 'mean', 'mice']
-imputed_npy_filename = 'data/imputed_data_mmc7.npy'
+imputed_npy_filename = 'data/imputed_data_allergy.npy'
 # taxonomy_order = 'phylum'  # [None, 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species']
 
 current_dataset = dataset_list[dataset_name](dataset_name)
@@ -35,9 +35,9 @@ else:
     onehot_encode = False
 
 # can be LSTM or CNNLSTM
-pca_components = 200
-model_type = "CNNLSTM"
-is_pca = False
+# pca_components = 200
+# model_type = "CNNLSTM"
+# is_pca = False
 pad_in_sequence = True
 gpus = None
 
@@ -219,9 +219,6 @@ if __name__ == '__main__':
     parser.add_argument('--imputed_type', default=None, type=str, choices=[None, 'GAIN', 'mean', 'mice'])
     args = parser.parse_args()
 
-    output_dict = current_dataset.process_data(pad_in_sequence=pad_in_sequence, imputer=args.imputed_type,
-                                               taxonomy_order=args.taxonomy_order)
-
     if args.all:
         all_model_types = ["CNNLSTM", "LSTM"]
         all_pcas = [True, False]
@@ -233,19 +230,24 @@ if __name__ == '__main__':
         attentions = [False]  # TODO change this to [True, False]
         os.makedirs('plots/average F1 plots', exist_ok=True)
 
-        for attention in attentions:
-            for self_distillation in self_distillations:
-                for discr_fine_tune in discr_fine_tunes:
-                    for gradual_unfreezing in gradual_unfreezings:
-                        for concat_pooling in concat_poolings:
-                            for model_type in all_model_types:
-                                for is_pca in all_pcas:
-                                    for pad_in_sequence in all_pads:
-                                        start_training(output_dict, model_type, is_pca, pad_in_sequence,
-                                                       taxonomy_order=args.taxonomy_order, imputed_type=args.imputed_type,
-                                                       prefix="",
-                                                       discr_fine_tune=discr_fine_tune, gradual_unfreezing=gradual_unfreezing,
-                                                       concat_pooling=concat_pooling, self_distillation=self_distillation, attention=attention)
+        for pad_in_sequence in all_pads:
+            output_dict = current_dataset.process_data(pad_in_sequence=pad_in_sequence, imputer=args.imputed_type,
+                                                   taxonomy_order=args.taxonomy_order)
+            for attention in attentions:
+                for self_distillation in self_distillations:
+                    for discr_fine_tune in discr_fine_tunes:
+                        for gradual_unfreezing in gradual_unfreezings:
+                            for concat_pooling in concat_poolings:
+                                for model_type in all_model_types:
+                                    for is_pca in all_pcas:
+
+                                            start_training(output_dict, model_type, is_pca, pad_in_sequence,
+                                                           taxonomy_order=args.taxonomy_order, imputed_type=args.imputed_type,
+                                                           prefix="",
+                                                           discr_fine_tune=discr_fine_tune, gradual_unfreezing=gradual_unfreezing,
+                                                           concat_pooling=concat_pooling, self_distillation=self_distillation, attention=attention)
     else:
+        output_dict = current_dataset.process_data(pad_in_sequence=pad_in_sequence, imputer=args.imputed_type,
+                                                   taxonomy_order=args.taxonomy_order)
         start_training(output_dict, args.model_type, args.pca, args.pad_in_sequence,
                        taxonomy_order=args.taxonomy_order, imputed_type=args.imputed_type, prefix="")
