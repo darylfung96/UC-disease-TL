@@ -40,8 +40,9 @@ class LightningLSTM(pl.LightningModule):
 
         # for self distillation
         self.self_distillation = self_distillation
-        distill_args = {'total_epoch': total_epoch}
-        self.self_distillation.init(distill_args, self.model)
+        if self.self_distillation is not None:
+            distill_args = {'total_epoch': total_epoch}
+            self.self_distillation.init(distill_args, self.model)
 
     def _unfreeze_next_layer(self):
         list(reversed(list(self.parameters())))[self.current_unfrozen_layer].requires_grad = True
@@ -58,14 +59,15 @@ class LightningLSTM(pl.LightningModule):
 
     def on_train_epoch_start(self):
         args = {'current_epoch': self.current_epoch, 'model': self.model}
-        self.self_distillation.on_train_epoch_start(args)
+        if self.self_distillation is not None:
+            self.self_distillation.on_train_epoch_start(args)
 
     def training_step(self, batch, batch_index):
         x, x_length, y = batch
         out = self.model(x, x_length)
 
         loss = self.criterion(out, y)
-        if self.self_distillation:
+        if self.self_distillation is not None:
             args = {'loss': loss, 'x': x, 'x_length': x_length, 'y': y,
                     'main_pre_output_layer_features': self.model.main_pre_output_layer_features,
                     'post_main_output_layer': self.model.post_main_output_layer, 'model': self.model}
@@ -75,7 +77,8 @@ class LightningLSTM(pl.LightningModule):
         return loss
 
     def on_train_epoch_end(self):
-        self.self_distillation.on_train_epoch_end(self.model)
+        if self.self_distillation is not None:
+            self.self_distillation.on_train_epoch_end(self.model)
 
     def on_validation_epoch_start(self):
         self.model.eval()
@@ -87,7 +90,7 @@ class LightningLSTM(pl.LightningModule):
         out = self.model(x, x_length)
 
         loss = self.criterion(out, y)
-        if self.self_distillation:
+        if self.self_distillation is not None:
             args = {'loss': loss, 'x': x, 'x_length': x_length,
                     'y': y, 'main_pre_output_layer_features': self.model.main_pre_output_layer_features,
                     'post_main_output_layer': self.model.post_main_output_layer, 'model': self.model}
@@ -218,7 +221,7 @@ class LSTM(BackBone):
                                           nn.Linear(hidden_size, hidden_size), nn.ReLU(), nn.Dropout(0.5),
                                           nn.Linear(hidden_size, output_size))
 
-        if self.self_distillation:
+        if self.self_distillation is not None:
             distillation_args = {'hidden_size': hidden_size, 'output_size': output_size, 'attention': attention,
                                  'create_layer_block': self._create_layer_block}
             self.self_distillation.init(distillation_args, None)
@@ -260,7 +263,7 @@ class LSTM(BackBone):
                 last_output = last_output.reshape(last_output.shape[0], -1)
 
         # self distillation
-        if self.self_distillation:
+        if self.self_distillation is not None:
             self.self_distillation.forward(last_output)
 
         self.main_pre_output_layer_features = self.main_pre_output_layer(last_output)
@@ -289,7 +292,7 @@ class CNNLSTM(BackBone):
         if concat_pooling:
             hidden_size = 3 * hidden_size
 
-        if self.self_distillation:
+        if self.self_distillation is not None:
             distillation_args = {'hidden_size': hidden_size, 'output_size': output_size, 'attention': attention,
                                  'create_layer_block': self._create_layer_block}
             self.self_distillation.init(distillation_args, None)
@@ -319,7 +322,7 @@ class CNNLSTM(BackBone):
                 last_output = last_output.reshape(last_output.shape[0], -1)
 
         # self distillation
-        if self.self_distillation:
+        if self.self_distillation is not None:
             self.self_distillation.forward(last_output)
 
         self.main_pre_output_layer_features = self.main_pre_output_layer(last_output)

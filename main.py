@@ -226,7 +226,7 @@ if __name__ == '__main__':
         discr_fine_tunes = [False]
         gradual_unfreezings = [False]
         concat_poolings = [False]
-        self_distillations = [FirstLightningDistillation(), SecondLightningDistillation()]
+        self_distillations = [None, FirstLightningDistillation(), SecondLightningDistillation()]
         attentions = [False]  # TODO change this to [True, False]
         os.makedirs('plots/average F1 plots', exist_ok=True)
 
