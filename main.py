@@ -227,25 +227,26 @@ if __name__ == '__main__':
         gradual_unfreezings = [False]
         concat_poolings = [False]
         self_distillations = [None, FirstLightningDistillation(), SecondLightningDistillation()]
+        imputed_types = [None, 'GAIN', 'mean', 'mice']
         attentions = [False]  # TODO change this to [True, False]
         os.makedirs('plots/average F1 plots', exist_ok=True)
 
         for pad_in_sequence in all_pads:
-            output_dict = current_dataset.process_data(pad_in_sequence=pad_in_sequence, imputer=args.imputed_type,
-                                                   taxonomy_order=args.taxonomy_order)
-            for attention in attentions:
-                for self_distillation in self_distillations:
-                    for discr_fine_tune in discr_fine_tunes:
-                        for gradual_unfreezing in gradual_unfreezings:
-                            for concat_pooling in concat_poolings:
-                                for model_type in all_model_types:
-                                    for is_pca in all_pcas:
-
-                                            start_training(output_dict, model_type, is_pca, pad_in_sequence,
-                                                           taxonomy_order=args.taxonomy_order, imputed_type=args.imputed_type,
-                                                           prefix="",
-                                                           discr_fine_tune=discr_fine_tune, gradual_unfreezing=gradual_unfreezing,
-                                                           concat_pooling=concat_pooling, self_distillation=self_distillation, attention=attention, gpus=args.gpus)
+            for imputed_type in imputed_types:
+                output_dict = current_dataset.process_data(pad_in_sequence=pad_in_sequence, imputer=imputed_type,
+                                                           taxonomy_order=args.taxonomy_order)
+                for attention in attentions:
+                    for self_distillation in self_distillations:
+                        for discr_fine_tune in discr_fine_tunes:
+                            for gradual_unfreezing in gradual_unfreezings:
+                                for concat_pooling in concat_poolings:
+                                    for model_type in all_model_types:
+                                        for is_pca in all_pcas:
+                                                start_training(output_dict, model_type, is_pca, pad_in_sequence,
+                                                               taxonomy_order=args.taxonomy_order, imputed_type=imputed_type,
+                                                               prefix="",
+                                                               discr_fine_tune=discr_fine_tune, gradual_unfreezing=gradual_unfreezing,
+                                                               concat_pooling=concat_pooling, self_distillation=self_distillation, attention=attention, gpus=args.gpus)
     else:
         output_dict = current_dataset.process_data(pad_in_sequence=pad_in_sequence, imputer=args.imputed_type,
                                                    taxonomy_order=args.taxonomy_order)
