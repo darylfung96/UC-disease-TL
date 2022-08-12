@@ -1,5 +1,9 @@
 # A self-knowledge distillation-driven CNN-LSTM model for predicting disease outcomes using longitudinal microbiome data 
 
+```
+Daryl L.X. Fung, Xu Li, Carson K. Leung, Pingzhao Hu
+```
+
 
 ### Getting Started
 Make sure you pip install the required packages.
