@@ -23,7 +23,7 @@ log_index = len(os.listdir('lightning_logs'))
 
 # define dataset
 # change parameters here
-dataset_name = 'mmc7'
+dataset_name = 'allergy'
 # imputed_type = None  # options: [None, 'GAIN', 'mean', 'mice']
 imputed_npy_filename = 'data/imputed_data_mmc7.npy'
 # taxonomy_order = 'phylum'  # [None, 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species']

@@ -1,3 +1,7 @@
 .idea/
 data/data_plots/
 gain_checkpoints/
+lightning_logs/
+pretrained_model/
+.DS_Store
+__pycache__/
