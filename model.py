@@ -24,6 +24,10 @@ class LightningLSTM(pl.LightningModule):
 
         self.self_distillation = self_distillation_dict.get(self_distillation, None)
         self.self_distillation = self.self_distillation() if self.self_distillation is not None else None
+        # for self distillation
+        if self.self_distillation is not None:
+            distill_args = {'total_epoch': total_epoch}
+            self.self_distillation.init(distill_args, self.model)
         self.model = model_dict[model](input_size, hidden_size, output_size, max_inputs_length, concat_pooling,
                                        self.self_distillation, attention).to(self.device)
         self.criterion = nn.BCELoss()
@@ -44,11 +48,6 @@ class LightningLSTM(pl.LightningModule):
             self.current_unfrozen_layer = 0
         self.discr_fine_tune = discr_fine_tune
         self.concat_pooling = concat_pooling
-
-        # for self distillation
-        if self.self_distillation is not None:
-            distill_args = {'total_epoch': total_epoch}
-            self.self_distillation.init(distill_args, self.model)
 
     def _unfreeze_next_layer(self):
         list(reversed(list(self.parameters())))[self.current_unfrozen_layer].requires_grad = True

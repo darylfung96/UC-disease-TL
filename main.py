@@ -18,7 +18,7 @@ from dataset import MMCDataset
 from model import LightningLSTM
 from self_distillation import LightningDistillation, FirstLightningDistillation, SecondLightningDistillation
 
-os.makedirs('lightning_logs', exist_ok=True)
+os.makedirs ('lightning_logs', exist_ok=True)
 log_index = len(os.listdir('lightning_logs'))
 
 # define dataset
@@ -221,13 +221,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.all:
-        all_model_types = ["CNNLSTM", "LSTM", "RNN"]
+        all_model_types = ["CNNLSTM", "LSTM"]
         all_pcas = [True, False]
         all_pads = [True, False]
         discr_fine_tunes = [False]
         gradual_unfreezings = [False]
         concat_poolings = [False]
-        self_distillations = [None, 'FirstLightningDistillation', 'SecondLightningDistillation']
+        self_distillations = ['FirstLightningDistillation', 'SecondLightningDistillation', None]
         imputed_types = [None]  # [None, 'GAIN', 'mean', 'mice']
         attentions = [False]  # TODO change this to [True, False]
         os.makedirs('plots/average F1 plots', exist_ok=True)
