@@ -23,9 +23,9 @@ class LightningLSTM(pl.LightningModule):
             assert model != 'RNN', 'RNN is just for comparing against, there is no self distillation implementation'
 
         self.self_distillation = self_distillation_dict.get(self_distillation, None)
-        self.self_distillation = self.self_distillation() if self.self_distillation is not None else None
+        self.self_distillation = self.self_distillation().to(self.device) if self.self_distillation is not None else None
         self.model = model_dict[model](input_size, hidden_size, output_size, max_inputs_length, concat_pooling,
-                                       self.self_distillation, attention)
+                                       self.self_distillation, attention).to(self.device)
         self.criterion = nn.BCELoss()
 
         self.log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': [], 'validation auc': []}

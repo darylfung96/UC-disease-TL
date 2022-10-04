@@ -16,7 +16,7 @@ plot_choices = ['GAIN', 'mice', 'mean']  # or None
 plot_type = None
 
 # plot as table
-for pth in os.listdir('plots/average F1 plots/'):
+for pth in os.listdir('plots/average F1 plots DIABIMMUNE/'):
 
     if pth == '.DS_Store':
         continue
@@ -51,11 +51,21 @@ for pth in os.listdir('plots/average F1 plots/'):
     # if 'GAIN' in pth or 'mean' in pth or 'mice' in pth:
     #     continue
 
-    result = torch.load(f'plots/average F1 plots/{pth}')
+    result = torch.load(f'plots/average F1 plots DIABIMMUNE/{pth}')
     mean = list(result['mean'].values())[:-1]
     std = list(result['std'].values())
 
-    all_rows.append([pth.replace('plots for ', '')] + list(chain(*zip(mean, std))))
+    pth_name = pth.replace('plots for ', '')
+    pth_name = pth_name.replace('_None.pth', '')
+    pth_name = pth_name.replace('FirstLightningDistillation', 'FD')
+    pth_name = pth_name.replace('SecondLightningDistillation', 'SD')
+    pth_name = pth_name.replace('____allergy_None', '')
+    pth_name = pth_name.replace('____', ' ')
+    pth_name = pth_name.replace('___', ' ')
+    pth_name = pth_name.replace('__', ' ')
+
+
+    all_rows.append([pth_name] + list(chain(*zip(mean, std))))
 os.makedirs(f'plots/plots results/', exist_ok=True)
 pd.DataFrame(all_rows, columns=columns).to_csv(f'plots/plots results/{plot_type}_results.csv')
 

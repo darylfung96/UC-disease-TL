@@ -23,7 +23,7 @@ log_index = len(os.listdir('lightning_logs'))
 
 # define dataset
 # change parameters here
-dataset_name = 'allergy'
+dataset_name = 'mmc7'
 # imputed_type = None  # options: [None, 'GAIN', 'mean', 'mice']
 imputed_npy_filename = 'data/imputed_data_mmc7.npy'
 # taxonomy_order = 'phylum'  # [None, 'kingdom', 'phylum', 'class', 'order', 'family', 'genus', 'species']
@@ -221,7 +221,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.all:
-        all_model_types = ["CNNLSTM", "LSTM"]
+        all_model_types = ["RNN", "CNNLSTM", "LSTM"]
         all_pcas = [True, False]
         all_pads = [True, False]
         discr_fine_tunes = [False]
