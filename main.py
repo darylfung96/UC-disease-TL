@@ -101,7 +101,7 @@ def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_or
         kf = ShuffleSplit(n_splits=number_splits, test_size=0.1)
         kf.get_n_splits(sorted_data, target_data)
     else:
-        kf = KFold(n_splits=number_splits, random_state=100)
+        kf = KFold(n_splits=number_splits)
 
     for index, (train_index, test_index) in enumerate(kf.split(sorted_data, target_data)):
         random.seed(100)
