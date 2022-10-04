@@ -18,6 +18,10 @@ class LightningLSTM(pl.LightningModule):
         self.hidden_size = hidden_size
         self.total_epoch = total_epoch
 
+        # checks
+        if self_distillation is not None:
+            assert model != 'RNN', 'RNN is just for comparing against, there is no self distillation implementation'
+
         self.model = model_dict[model](input_size, hidden_size, output_size, max_inputs_length, concat_pooling, self_distillation, attention)
         self.criterion = nn.BCELoss()
 
@@ -205,6 +209,35 @@ class BackBone(nn.Module):
         return torch.abs(loss).sum()
 
 
+class RNN(BackBone):
+    """
+    A normal RNN to compare our model against
+    """
+    def __init__(self, input_size, hidden_size, output_size, max_inputs_length, concat_pooling=False,
+                 self_distillation: LightningDistillation = FirstLightningDistillation, attention=False):
+        super(RNN, self).__init__(max_inputs_length)
+
+        self.lstm = nn.RNN(input_size=input_size, hidden_size=hidden_size, batch_first=True)
+
+        hidden_size = hidden_size
+        self.main_pre_output_layer, self.main_output_layer = self._create_layer_block(hidden_size, output_size, attention)
+
+    def forward(self, inputs, inputs_length):
+        X = torch.nn.utils.rnn.pack_padded_sequence(inputs, inputs_length.cpu(), batch_first=True, enforce_sorted=False)
+        out, hidden = self.lstm(X)
+        X, _ = torch.nn.utils.rnn.pad_packed_sequence(out, batch_first=True)
+
+        # get last output
+        last_seq_idxs = torch.LongTensor([len_idx - 1 for len_idx in inputs_length])
+        last_output = X[range(X.shape[0]), last_seq_idxs, :]
+
+        self.main_pre_output_layer_features = self.main_pre_output_layer(last_output)
+        main_output_layer = self.main_output_layer(self.main_pre_output_layer_features)
+        self.post_main_output_layer = F.sigmoid(main_output_layer)
+
+        return self.post_main_output_layer
+
+
 class LSTM(BackBone):
     def __init__(self, input_size, hidden_size, output_size, max_inputs_length, concat_pooling=False,
                  self_distillation: LightningDistillation = FirstLightningDistillation, attention=False):
@@ -214,6 +247,7 @@ class LSTM(BackBone):
         self.attention = attention
 
         self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size, batch_first=True)
+
         hidden_size = hidden_size
         if self.concat_pooling:
             hidden_size = 3 * hidden_size
@@ -236,7 +270,7 @@ class LSTM(BackBone):
         self.pre_output_layer4_features = None
 
     def forward(self, inputs, inputs_length):
-        X = torch.nn.utils.rnn.pack_padded_sequence(inputs, inputs_length, batch_first=True, enforce_sorted=False)
+        X = torch.nn.utils.rnn.pack_padded_sequence(inputs, inputs_length.cpu(), batch_first=True, enforce_sorted=False)
         out, hidden = self.lstm(X)
         X, _ = torch.nn.utils.rnn.pad_packed_sequence(out, batch_first=True)
 
@@ -336,5 +370,6 @@ class CNNLSTM(BackBone):
 
 model_dict = {
     'LSTM': LSTM,
-    'CNNLSTM': CNNLSTM
+    'CNNLSTM': CNNLSTM,
+    'RNN': RNN
 }
