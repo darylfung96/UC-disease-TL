@@ -25,11 +25,13 @@ class LightningLSTM(pl.LightningModule):
         self.self_distillation = self_distillation_dict.get(self_distillation, None)
         self.self_distillation = self.self_distillation() if self.self_distillation is not None else None
         # for self distillation
+        self.model = model_dict[model](input_size, hidden_size, output_size, max_inputs_length, concat_pooling,
+                                       self.self_distillation, attention)
         if self.self_distillation is not None:
             distill_args = {'total_epoch': total_epoch}
             self.self_distillation.init(distill_args, self.model)
-        self.model = model_dict[model](input_size, hidden_size, output_size, max_inputs_length, concat_pooling,
-                                       self.self_distillation, attention).to(self.device)
+
+        self.model.to(self.device)
         self.criterion = nn.BCELoss()
 
         self.log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': [], 'validation auc': []}
