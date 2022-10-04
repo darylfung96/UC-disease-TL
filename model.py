@@ -6,13 +6,13 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 from typing import List, Any
 
-from self_distillation import LightningDistillation, FirstLightningDistillation
+from self_distillation import LightningDistillation, FirstLightningDistillation, SecondLightningDistillation
 
 
 class LightningLSTM(pl.LightningModule):
     def __init__(self, model, input_size, hidden_size, output_size, max_inputs_length, load_model_filename=None, gradual_unfreezing=False,
                  discr_fine_tune=False, concat_pooling=False,
-                 self_distillation: LightningDistillation = FirstLightningDistillation, attention=False, total_epoch=100):
+                 self_distillation:str=None, attention=False, total_epoch=100):
         super(LightningLSTM, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -22,7 +22,9 @@ class LightningLSTM(pl.LightningModule):
         if self_distillation is not None:
             assert model != 'RNN', 'RNN is just for comparing against, there is no self distillation implementation'
 
-        self.model = model_dict[model](input_size, hidden_size, output_size, max_inputs_length, concat_pooling, self_distillation, attention)
+        self.self_distillation = self_distillation_dict.get(self_distillation, None)
+        self.model = model_dict[model](input_size, hidden_size, output_size, max_inputs_length, concat_pooling,
+                                       self.self_distillation, attention)
         self.criterion = nn.BCELoss()
 
         self.log_dict = {'validation f1': [], 'validation precision': [], 'validation recall': [], 'validation loss': [], 'validation auc': []}
@@ -43,7 +45,6 @@ class LightningLSTM(pl.LightningModule):
         self.concat_pooling = concat_pooling
 
         # for self distillation
-        self.self_distillation = self_distillation
         if self.self_distillation is not None:
             distill_args = {'total_epoch': total_epoch}
             self.self_distillation.init(distill_args, self.model)
@@ -269,6 +270,42 @@ class LSTM(BackBone):
         self.pre_output_layer3_features = None
         self.pre_output_layer4_features = None
 
+    def get_all_intermediate_outputs(self, inputs, inputs_length):
+        """
+        This is not for training, only used for evaluation to get the intermediate outputs of the model
+
+        :param inputs:
+        :param inputs_length:
+        :return:
+        """
+        X = torch.nn.utils.rnn.pack_padded_sequence(inputs, inputs_length.cpu(), batch_first=True, enforce_sorted=False)
+        out, hidden = self.lstm(X)
+        X, _ = torch.nn.utils.rnn.pad_packed_sequence(out, batch_first=True)
+
+        # concat pooling
+        if self.concat_pooling:
+            raise NotImplementedError('Concat Pooling is not tested with intermediate outputs')
+            concat_pooling_output = None
+            for i in range(X.shape[0]):
+                current_output = X[i:i + 1, last_seq_idxs[i]:last_seq_idxs[i] + 1, :]
+                before_mean_output = X[i:i + 1, :last_seq_idxs[i], :]
+                mean_output = torch.mean(before_mean_output, 1, keepdim=True)
+                max_output = torch.max(before_mean_output, 1, keepdim=True)[0]
+                output = torch.cat([current_output, mean_output, max_output], 1)
+
+                if concat_pooling_output is None:
+                    concat_pooling_output = output
+                else:
+                    concat_pooling_output = torch.cat([concat_pooling_output, output], 0)
+            last_output = concat_pooling_output
+            last_output = last_output.reshape(last_output.shape[0], -1)
+
+        self.main_pre_output_layer_features = self.main_pre_output_layer(X)
+        main_output_layer = self.main_output_layer(self.main_pre_output_layer_features)
+        self.post_main_output_layer = F.sigmoid(main_output_layer)
+
+        return self.post_main_output_layer
+
     def forward(self, inputs, inputs_length):
         X = torch.nn.utils.rnn.pack_padded_sequence(inputs, inputs_length.cpu(), batch_first=True, enforce_sorted=False)
         out, hidden = self.lstm(X)
@@ -341,6 +378,32 @@ class CNNLSTM(BackBone):
         self.pre_output_layer4_features = None
         self.main_pre_output_layer_features = None
 
+    def get_all_intermediate_outputs(self, inputs):
+        """
+        This is not for training, only used for evaluation to get the intermediate outputs of the model
+
+        :param inputs:
+        :param inputs_length:
+        :return:
+        """
+        conv1_output = F.relu(self.bn1(self.conv1(inputs.transpose(1, 2))))
+        conv2_output = F.relu(self.conv2(conv1_output))
+
+        out, hidden = self.lstm(conv2_output.transpose(1, 2))
+
+        # concat pooling
+        if self.concat_pooling:
+            raise NotImplementedError('Concat Pooling is not tested with intermediate outputs')
+            last_output = torch.cat([out[:, -1:, :], torch.mean(out, 1, keepdim=True),
+                                     torch.max(out, 1, keepdim=True)[0]], 1)
+            last_output = last_output.reshape(last_output.shape[0], -1)
+
+        self.main_pre_output_layer_features = self.main_pre_output_layer(out)
+        main_output_layer = self.main_output_layer(self.main_pre_output_layer_features)
+        self.post_main_output_layer = F.sigmoid(main_output_layer)
+
+        return self.post_main_output_layer
+
     def forward(self, inputs, inputs_length):
         conv1_output = F.relu(self.bn1(self.conv1(inputs.transpose(1, 2))))
         conv2_output = F.relu(self.conv2(conv1_output))
@@ -372,4 +435,9 @@ model_dict = {
     'LSTM': LSTM,
     'CNNLSTM': CNNLSTM,
     'RNN': RNN
+}
+
+self_distillation_dict = {
+    'FirstLightningDistillation': FirstLightningDistillation,
+    'SecondLightningDistillation': SecondLightningDistillation
 }

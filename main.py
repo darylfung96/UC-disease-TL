@@ -43,7 +43,7 @@ pad_in_sequence = True
 
 def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_order=None, imputed_type=None,
                    prefix='', number_splits=10, load_model_filename=None, gradual_unfreezing=False, discr_fine_tune=False,
-                   concat_pooling=False, self_distillation: LightningDistillation=None, attention=False, gpus=None):
+                   concat_pooling=False, self_distillation:str=None, attention=False, gpus=None):
     """
 
     :param output_dict:     Dictionary of the dataset information in the format of:
@@ -63,7 +63,7 @@ def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_or
     gradual_unfreezing_text = 'g' if gradual_unfreezing else ''
     discr_fine_tune_text = 'df' if discr_fine_tune else ''
     concat_pooling_text = 'conpool' if concat_pooling else ''
-    self_distillation_text = self_distillation.__class__.__name__ if self_distillation is not None else ''
+    self_distillation_text = self_distillation if self_distillation is not None else ''
     attention_text = 'attention' if attention else ''
 
     # pad the patient samples to 6 time stamp in sequence, if we are using LSTM we do not have to use this
@@ -227,7 +227,7 @@ if __name__ == '__main__':
         discr_fine_tunes = [False]
         gradual_unfreezings = [False]
         concat_poolings = [False]
-        self_distillations = [None, FirstLightningDistillation(), SecondLightningDistillation()]
+        self_distillations = [None, 'FirstLightningDistillation', 'SecondLightningDistillation']
         imputed_types = [None]  # [None, 'GAIN', 'mean', 'mice']
         attentions = [False]  # TODO change this to [True, False]
         os.makedirs('plots/average F1 plots', exist_ok=True)
