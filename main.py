@@ -63,7 +63,7 @@ def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_or
     gradual_unfreezing_text = 'g' if gradual_unfreezing else ''
     discr_fine_tune_text = 'df' if discr_fine_tune else ''
     concat_pooling_text = 'conpool' if concat_pooling else ''
-    self_distillation_text = self_distillation.__class__.__name__ if self_distillation else ''
+    self_distillation_text = self_distillation.__class__.__name__ if self_distillation is not None else ''
     attention_text = 'attention' if attention else ''
 
     # pad the patient samples to 6 time stamp in sequence, if we are using LSTM we do not have to use this
@@ -135,16 +135,16 @@ def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_or
                                 f'{dataset_name}_{taxonomy_order}_'
                                 f'{pca_text}_{model_type}_{pad_text}_{imputed_type}')
         pl_trainer = Trainer(max_epochs=total_epoch,
-                             checkpoint_callback=ModelCheckpoint('saved_model/model', monitor='validation_loss',
-                                                                 save_top_k=1, prefix=f'kfold_{index}'),
+                             checkpoint_callback=ModelCheckpoint(f'saved_model/model/k_fold_{index}', monitor='validation_loss',
+                                                                 save_top_k=1),
                              logger=tb_logger, gpus=gpus)
         pl_trainer.fit(lightning_lstm, train_data_loader, test_data_loader)
 
-        log_dict['validation f1'].append(lightning_lstm.log_dict['validation f1'])
-        log_dict['validation precision'].append(lightning_lstm.log_dict['validation precision'])
-        log_dict['validation recall'].append(lightning_lstm.log_dict['validation recall'])
-        log_dict['validation loss'].append(lightning_lstm.log_dict['validation loss'])
-        log_dict['validation auc'].append(lightning_lstm.log_dict['validation auc'])
+        log_dict['validation f1'].append(np.max(lightning_lstm.log_dict['validation f1']))
+        log_dict['validation precision'].append(np.max(lightning_lstm.log_dict['validation precision']))
+        log_dict['validation recall'].append(np.max(lightning_lstm.log_dict['validation recall']))
+        log_dict['validation loss'].append(np.max(lightning_lstm.log_dict['validation loss']))
+        log_dict['validation auc'].append(np.max(lightning_lstm.log_dict['validation auc']))
 
         # get confusion matrix
         lightning_lstm.model.load_state_dict(lightning_lstm.best_state_dict)
@@ -199,6 +199,7 @@ def start_training(output_dict, model_type, is_pca, pad_in_sequence, taxonomy_or
         std_fold_values[key] = std_value
 
     all_fold_values = {'mean': mean_fold_values, 'std': std_fold_values}
+    print(all_fold_values)
     torch.save(all_fold_values, f'plots/average F1 plots/plots for {attention_text}_'
                                 f'{self_distillation_text}_{gradual_unfreezing_text}_'
                                 f'{discr_fine_tune_text}_{concat_pooling_text}_{prefix}_'
@@ -227,7 +228,7 @@ if __name__ == '__main__':
         gradual_unfreezings = [False]
         concat_poolings = [False]
         self_distillations = [None, FirstLightningDistillation(), SecondLightningDistillation()]
-        imputed_types = [None, 'GAIN', 'mean', 'mice']
+        imputed_types = [None]  # [None, 'GAIN', 'mean', 'mice']
         attentions = [False]  # TODO change this to [True, False]
         os.makedirs('plots/average F1 plots', exist_ok=True)
 

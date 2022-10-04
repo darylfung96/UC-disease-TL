@@ -97,12 +97,14 @@ class LightningLSTM(pl.LightningModule):
             loss = self.self_distillation.step(args)
         self.log("validation_loss", loss.item(), prog_bar=True)
 
-        fpr, tpr, thresholds = roc_curve(y.cpu().detach().reshape(-1), out.cpu().detach().reshape(-1))
+        y = y.cpu().detach().reshape(-1)
+        out = out.cpu().detach().reshape(-1)
+        fpr, tpr, thresholds = roc_curve(y, out)
         auc_value = auc(fpr, tpr)
         optimal_idx = np.argmax(tpr - fpr)
         optimal_threshold = thresholds[optimal_idx]
 
-        predictions = out.cpu().detach()
+        predictions = out.cpu().clone().detach().numpy()
         predictions[ predictions > optimal_threshold] = 1
         predictions[ predictions <= optimal_threshold] = 0
 
