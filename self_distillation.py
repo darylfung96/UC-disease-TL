@@ -6,7 +6,7 @@ import torch.nn.functional as F
 class LightningDistillation(ABC):
 
     @abstractmethod
-    def init(self, args, model=None):
+    def init(self, args, model):
         pass
 
     @abstractmethod
@@ -48,7 +48,7 @@ class FirstLightningDistillation(LightningDistillation):
         self.alpha = 0.1
         self.beta = 1e-6
 
-    def init(self, args, model=None):
+    def init(self, args, model):
         self.model.model_init(args)
 
     def on_train_epoch_start(self, args):
@@ -174,7 +174,7 @@ class SecondLightningDistillation(LightningDistillation):
         self.alpha = 0
         self.last_alpha = 0.3
 
-    def init(self, args, model=None):
+    def init(self, args, model):
         if args.get('total_epoch', None):
             self.total_epoch = args['total_epoch']
 
